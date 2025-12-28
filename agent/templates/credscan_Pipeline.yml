@@ -1,0 +1,42 @@
+trigger:
+- main
+
+steps:
+
+- task: CredScan@3
+  inputs:
+    outputFormat: 'pre'
+
+- task: 1ESSecretScanning@1
+  inputs:
+    Action: 'analyze'
+    Rules: 'GetClean'
+    Target: '$(Build.SourcesDirectory)\*'
+
+- task: AntiMalware@4
+  inputs:
+    InputType: 'Basic'
+    ScanType: 'QuickScan'
+    TreatSignatureUpdateFailureAs: 'Warning'
+    SignatureFreshness: 'UpToDate'
+    TreatStaleSignatureAs: 'Error'
+
+- task: ManifestGeneratorTask@0
+  displayName: 'Generation Task'
+  inputs:
+    BuildDropPath: '$(Build.SourcesDirectory)'
+    PackageName: 'Visual Studio 2022'
+    PackageVersion: '17.0.2'
+
+- task: PSScriptAnalyzer@1
+  inputs:
+    Path: '$(Build.SourcesDirectory)'
+    Settings: 'required'
+    Recurse: true
+
+- task: Bandit@1
+  inputs:
+    targetsType: 'banditPattern'
+    targetsBandit: '$(Build.SourcesDirectory)'
+    targetsBanditRecursive: true
+    ruleset: 'guardian'

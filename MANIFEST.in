@@ -1,0 +1,10 @@
+# Manifest file to include non-Python files in the package
+include LICENSE
+include README.md
+include pyproject.toml
+recursive-include agent/scripts *.ps1
+recursive-include agent/templates *.bicep
+include agent/AGENT_INSTRUCTIONS.md
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store

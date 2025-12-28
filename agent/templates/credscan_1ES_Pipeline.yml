@@ -1,0 +1,96 @@
+parameters:
+  - name: poolName
+    displayName: 'Pool Name'
+    type: string
+  
+  - name: poolImage
+    displayName: 'Pool Image'
+    type: string
+  
+  - name: poolOs
+    displayName: 'Pool OS'
+    type: string
+
+trigger:
+- main
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+variables:
+  Codeql.PublishDatabaseLog: true
+  Codeql.Cadence: 0
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    pool:
+      name: ${{ parameters.poolName }}
+      image: ${{ parameters.poolImage }}
+      os: ${{ parameters.poolOs }}
+
+    sdl:
+      sourceAnalysisPool:
+        name: ${{ parameters.poolName }}
+        image: ${{ parameters.poolImage }}
+        os: ${{ parameters.poolOs }}
+
+    settings:
+      networkIsolationPolicy: Permissive, CFSClean
+
+    stages:
+    - stage: Build
+      displayName: Build
+      jobs:
+      - job: Build
+        displayName: Build
+        timeoutInMinutes: 180
+
+        templateContext:
+          outputs:
+          - output: pipelineArtifact
+            targetPath: '$(Build.ArtifactStagingDirectory)'
+            artifactName: 'fabric_deployment_artifacts'
+
+        steps:
+          - task: CredScan@3
+            inputs:
+              outputFormat: 'pre'
+
+          - task: 1ESSecretScanning@1
+            inputs:
+              Action: 'analyze'
+              Rules: 'GetClean'
+              Target: '$(Build.SourcesDirectory)\*'
+
+          - task: AntiMalware@4
+            inputs:
+              InputType: 'Basic'
+              ScanType: 'QuickScan'
+              TreatSignatureUpdateFailureAs: 'Warning'
+              SignatureFreshness: 'UpToDate'
+              TreatStaleSignatureAs: 'Error'
+
+          - task: ManifestGeneratorTask@0
+            displayName: 'Generation Task'
+            inputs:
+              BuildDropPath: '$(Build.SourcesDirectory)'
+              PackageName: 'Visual Studio 2022'
+              PackageVersion: '17.0.2'
+
+          - task: PSScriptAnalyzer@1
+            inputs:
+              Path: '$(Build.SourcesDirectory)'
+              Settings: 'required'
+              Recurse: true
+
+          - task: Bandit@1
+            inputs:
+              targetsType: 'banditPattern'
+              targetsBandit: '$(Build.SourcesDirectory)'
+              targetsBanditRecursive: true
+              ruleset: 'guardian'

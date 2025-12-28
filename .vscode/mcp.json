@@ -1,0 +1,10 @@
+{
+    "servers": {
+        "azure-agent": {
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/agent/server.py"
+            ]
+        }
+    }
+}

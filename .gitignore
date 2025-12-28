@@ -1,0 +1,94 @@
+# .gitignore for Azure customazuremcpagent Agent Package
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+env.bak/
+venv.bak/
+
+# IDE - Keep .vscode for shared configs, ignore personal settings
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+.history/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.cover
+*.log
+
+# Distribution
+*.whl
+*.tar.gz
+pip-wheel-metadata/
+__pypackages__/
+.python-version
+coverage.xml
+customazuremcpagent.engg-info
+
+# PyPI credentials (if accidentally created)
+.pypirc
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Environment variables
+.env
+.env.local
+.envrc
+
+# Azure/Bicep
+*.zip
+*.parameters.json
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.old
