@@ -29,6 +29,8 @@ resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = {
     customSubDomainName: effectiveSubdomain
     disableLocalAuth: disableLocalAuth
     publicNetworkAccess: disablePublicNetworkAccess ? 'Disabled' : 'Enabled'
+    restrictOutboundNetworkAccess: restrictOutboundNetworkAccess
+    allowedFqdnList: restrictOutboundNetworkAccess ? allowedFqdnList : []
     ...(applyNetworkAcls ? {
       networkAcls: {
         defaultAction: 'Deny'
@@ -47,9 +49,6 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-pre
     type: 'SystemAssigned'
   }
   properties: {}
-  dependsOn: [
-    aiFoundry
-  ]
 }
 
 output aiFoundryId string = aiFoundry.id

@@ -1,6 +1,6 @@
 """MCP Server for Azure resource deployment with compliance orchestration."""
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __author__ = "Siddhant Jha"
 
 from agent.server import mcp, main

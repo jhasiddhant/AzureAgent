@@ -22,8 +22,8 @@ resources:
       ref: refs/tags/release
 
 variables:
-  Codeql.PublishDatabaseLog: true
-  Codeql.Cadence: 0
+  credscan.PublishDatabaseLog: true
+  credscan.Cadence: 0
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines

@@ -55,8 +55,7 @@ try {
         Write-Host "Checking workspace: $($workspace.displayName)..." -ForegroundColor Gray
         
         $userRole = $null
-        $accessMethod = "Direct"
-        
+
         # Get workspace role assignments
         try {
             $roleAssignments = Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/workspaces/$($workspace.id)/roleAssignments" `
@@ -71,40 +70,27 @@ try {
             if ($directRole) {
                 # Direct access - show actual role
                 $userRole = $directRole.role
-                $accessMethod = "Direct"
             }
             else {
-                # No direct role found - check group assignments
+                # No direct role found - workspace accessible via group
                 $groupRoles = $roleAssignments.value | Where-Object { 
                     $_.principal.type -eq "Group" 
                 }
                 
                 if ($groupRoles) {
-                    # User has access via group(s) - show the highest privilege role
-                    $roleHierarchy = @{
-                        "Admin" = 4
-                        "Contributor" = 3
-                        "Member" = 2
-                        "Viewer" = 1
-                    }
-                    
-                    $highestRole = $groupRoles | Sort-Object { $roleHierarchy[$_.role] } -Descending | Select-Object -First 1
-                    $groupName = $highestRole.principal.displayName
-                    $userRole = "$($highestRole.role) (via Group: $groupName)"
-                    $accessMethod = "Group"
+                    # User has access via group - don't show specific group name or role
+                    $userRole = "Access via Group"
                 }
                 else {
                     # Workspace is accessible but no explicit role found
-                    $userRole = "Accessed via Group"
-                    $accessMethod = "Group"
+                    $userRole = "Access via Group"
                 }
             }
         }
         catch {
             # If we can't get role assignments, assume group access
             Write-Host "  Unable to retrieve role assignments" -ForegroundColor Yellow
-            $userRole = "Accessed via Group"
-            $accessMethod = "Unknown"
+            $userRole = "Access via Group"
         }
         
         # Add workspace to results (it's in the list, so user has access)

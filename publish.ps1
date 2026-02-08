@@ -41,9 +41,9 @@ function Write-Error { Write-Host $args -ForegroundColor Red }
 
 $packageDir = $PSScriptRoot
 
-Write-Info "==================================================="
+Write-Info "================================================================"
 Write-Warning "  Azure customazuremcpagent Agent - PRODUCTION PyPI Publisher"
-Write-Info "==================================================="
+Write-Info "================================================================"
 Write-Info ""
 
 # Check if required tools are installed

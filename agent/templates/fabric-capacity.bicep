@@ -22,8 +22,8 @@ param sku string
 @description('Admin member emails for the Fabric capacity (comma-separated for multiple emails)')
 param adminMembers string
 
-@description('Location for the Fabric capacity - Should be same as Tenant Region')
-param location string
+@description('Location for the Fabric capacity - Auto-detected from tenant home region. Do not specify manually.')
+param location string = ''
 
 @description('Tags for the resource')
 param tags object = {}

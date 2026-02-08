@@ -8,6 +8,11 @@ $ErrorActionPreference = "Stop"
 # Normalize resource type
 $ResourceType = $ResourceType.ToLower().Trim()
 
+# Handle NSP aliases (network-security-perimeter, networksecurityperimeter, network security perimeter)
+if ($ResourceType -match "network.?security.?perimeter") {
+    $ResourceType = "nsp"
+}
+
 # Use provider type if specified, otherwise use common mappings
 if ([string]::IsNullOrEmpty($ProviderType)) {
     # Default mappings for all supported resource types (matches RESOURCE_TYPE_PROVIDER_MAP in server.py)

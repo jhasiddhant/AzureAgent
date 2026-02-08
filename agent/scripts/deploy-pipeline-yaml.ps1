@@ -1,5 +1,5 @@
 # Deploy YAML Template to Azure DevOps Repository
-# Deploys YAML file from agent templates folder to specified repo location
+# Deploys YAML file from agent templates folder OR custom YAML content to specified repo location
 
 param(
   [Parameter(Mandatory=$false)] [string]$Organization,
@@ -7,7 +7,9 @@ param(
   [Parameter(Mandatory=$false)] [string]$RepoName,
   [Parameter(Mandatory=$false)] [string]$TemplateName,
   [Parameter(Mandatory=$false)] [string]$Branch,
-  [Parameter(Mandatory=$false)] [string]$FolderPath
+  [Parameter(Mandatory=$false)] [string]$FolderPath,
+  [Parameter(Mandatory=$false)] [string]$CustomYamlContent,
+  [Parameter(Mandatory=$false)] [string]$YamlFileName
 )
 
 if (-not $Organization) { $Organization = Read-Host "Enter Organization URL (e.g. https://dev.azure.com/yourorg)" }
@@ -55,18 +57,45 @@ $env:AZURE_DEVOPS_EXT_PAT = $token
 # Configure defaults
 az devops configure --defaults organization=$Organization project=$ProjectName | Out-Null
 
-# Check if template exists locally
+# Determine if using template or custom YAML
+$usingCustomYaml = -not [string]::IsNullOrWhiteSpace($CustomYamlContent)
 $scriptDir = Split-Path -Parent $PSCommandPath
-$templatePath = Join-Path (Split-Path -Parent $scriptDir) "templates\$TemplateName.yml"
+$templatePath = ""
+$tempYamlFile = ""
 
-if (-not (Test-Path $templatePath)) {
-  Write-Host "`nTemplate file not found: $templatePath" -ForegroundColor Red
-  Write-Host "Available templates should be in: agent/templates/" -ForegroundColor Yellow
-  Write-Host "Expected file: $TemplateName.yml" -ForegroundColor Yellow
-  exit 1
+if ($usingCustomYaml) {
+  Write-Host "Using custom YAML content" -ForegroundColor Green
+  
+  # Determine filename
+  if ([string]::IsNullOrWhiteSpace($YamlFileName)) {
+    if (-not [string]::IsNullOrWhiteSpace($TemplateName)) {
+      $YamlFileName = "$TemplateName.yml"
+    } else {
+      $YamlFileName = "pipeline.yml"
+    }
+  }
+  
+  # Create temp file with custom YAML content
+  $tempYamlFile = Join-Path $env:TEMP "custom-yaml-$(Get-Random).yml"
+  $CustomYamlContent | Out-File -FilePath $tempYamlFile -Encoding UTF8
+  $templatePath = $tempYamlFile
+  
+  # Update target path with custom filename
+  $targetYamlPath = "$FolderPath/$YamlFileName"
+} else {
+  # Check if template exists locally
+  $templatePath = Join-Path (Split-Path -Parent $scriptDir) "templates\$TemplateName.yml"
+  
+  if (-not (Test-Path $templatePath)) {
+    Write-Host "`nTemplate file not found: $templatePath" -ForegroundColor Red
+    Write-Host "Available templates should be in: agent/templates/" -ForegroundColor Yellow
+    Write-Host "Expected file: $TemplateName.yml" -ForegroundColor Yellow
+    Write-Host "`nAlternatively, provide custom YAML content via -CustomYamlContent parameter" -ForegroundColor Cyan
+    exit 1
+  }
+  
+  Write-Host "Template found locally: $templatePath" -ForegroundColor Green
 }
-
-Write-Host "Template found locally: $templatePath" -ForegroundColor Green
 
 # Check if YAML already exists in repo
 Write-Host "Checking if YAML already exists in repository..." -ForegroundColor Gray
@@ -114,11 +143,11 @@ try {
   Copy-Item $templatePath -Destination $targetYamlPath -Force
   Write-Host "Template copied to $targetYamlPath" -ForegroundColor Green
   
-  # Get current user for git config
-  $currentUser = az account show --query user.name -o tsv 2>$null
-  if (-not $currentUser) { $currentUser = "Azure Agent" }
+  # Get current user for git config (user.name from az account show is the email/UPN)
+  $currentUserEmail = az account show --query user.name -o tsv 2>$null
+  $currentUser = $currentUserEmail.Split('@')[0]
   
-  git config user.email "$currentUser@azuredevops.com"
+  git config user.email $currentUserEmail
   git config user.name $currentUser
   git add $targetYamlPath
   
@@ -146,4 +175,7 @@ try {
 } finally {
   Set-Location $PSScriptRoot
   Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+  if ($tempYamlFile -and (Test-Path $tempYamlFile)) {
+    Remove-Item -Path $tempYamlFile -Force -ErrorAction SilentlyContinue
+  }
 }

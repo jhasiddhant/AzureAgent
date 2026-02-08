@@ -18,9 +18,6 @@ from typing import Dict, Tuple, Optional, Union, Any
 # Keywords that indicate deployment/operation failures
 ERROR_KEYWORDS = ["Error", "error", "FAILED", "Failed", "failed"]
 
-# Keywords that indicate successful operations
-SUCCESS_KEYWORDS = ["succeeded", "Succeeded", "SUCCESS", "completed"]
-
 # ============================================================================
 # MCP SERVER INITIALIZATION
 # ============================================================================
@@ -41,44 +38,6 @@ def load_agent_instructions() -> str:
             return f"Failed to read instructions: {e}"
     return "Instructions file not found."
 
-def get_action_menu() -> str:
-    return (
-        "Available actions:\n"
-        "1. List all active permissions (Live Fetch)\n"
-        "2. List all accessible resources (optional resource group)\n"
-        "3. Create resource group (requires: name, region, project name)\n"
-        "4. Create Azure resources with customazuremcpagent compliance\n"
-        "   Usage: create_azure_resource(resource_type, resource_group, **parameters)\n"
-        "   \n"
-        "   Interactive workflow:\n"
-        "   - Call with resource_type (e.g., 'storage-account')\n"
-        "   - Agent will ask for missing required parameters\n"
-        "   - Provide parameters when prompted\n"
-        "   - Agent deploys resource\n"
-        "   \n"
-        "   Supported types: storage-account | key-vault | openai | ai-search | ai-foundry | cosmos-db | container-registry | log-analytics | fabric-capacity | uami | nsp\n"
-        "\n"
-        "5. NSP Management (Manual)\n"
-        "   - check_nsp_in_resource_group(resource_group) - Check for existing NSP\n"
-        "   - create_azure_resource('nsp', resource_group, parameters) - Create new NSP\n"
-        "   - attach_resource_to_nsp(resource_group, nsp_name, resource_id) - Attach resource to NSP\n"
-        "   Note: If multiple NSPs exist, you'll be prompted to choose one\n"
-        "\n"
-        "6. Log Analytics Management (Manual)\n"
-        "   - check_log_analytics_in_resource_group(resource_group) - Check for existing workspace\n"
-        "   - create_azure_resource('log-analytics', resource_group, parameters) - Create new workspace\n"
-        "   - attach_diagnostic_settings(resource_group, workspace_id, resource_id) - Attach diagnostic settings\n"
-        "   Note: If multiple workspaces exist, you'll be prompted to choose one"
-    )
-
-GREETING_PATTERN = re.compile(r"\b(hi|hello|hey|greetings|good (morning|afternoon|evening))\b", re.IGNORECASE)
-
-def is_greeting(text: str) -> bool:
-    return bool(GREETING_PATTERN.search(text))
-
-def normalize(text: str) -> str:
-    return text.lower().strip()
-
 # ============================================================================
 # CONFIGURATION CONSTANTS
 # ============================================================================
@@ -92,14 +51,20 @@ NSP_MANDATORY_RESOURCES = [
 ]
 
 # Resources that should have diagnostic settings (suggestion will be provided after creation)
+# Include both long and short forms for consistency
 LOG_ANALYTICS_MANDATORY_RESOURCES = [
     "logic-app",
     "function-app",
     "app-service",
     "key-vault",
+    "kv",
     "openai",
+    "azure-openai",
     "synapse",
+    "azure-synapse-analytics",
     "data-factory",
+    "azure-data-factory",
+    "adf",
     "ai-hub",
     "ai-project",
     "ai-foundry",
@@ -107,9 +72,11 @@ LOG_ANALYTICS_MANDATORY_RESOURCES = [
     "ai-search",
     "front-door",
     "virtual-machine",
+    "vm",
     "redis-cache",
     "redis-enterprise",
-    "container-registry"
+    "container-registry",
+    "acr"
 ]
 
 # Bicep Templates (All deployments MUST go through MCP server for compliance orchestration)
@@ -123,48 +90,112 @@ TEMPLATE_MAP = {
     "cosmos-db": "templates/cosmos-db.bicep",
     "log-analytics": "templates/log-analytics.bicep",
     "uami": "templates/user-assigned-managed-identity.bicep",
-    "nsp": "templates/nsp.bicep",
+    "user-assigned-managed-identity": "templates/user-assigned-managed-identity.bicep",
+    "nsp": "templates/network-security-perimeter.bicep",
+    "network-security-perimeter": "templates/network-security-perimeter.bicep",
     "fabric-capacity": "templates/fabric-capacity.bicep",
     "container-registry": "templates/container-registry.bicep",
+    "acr": "templates/container-registry.bicep",
+    "function-app": "templates/function-app.bicep",
+    "public-ip": "templates/public-ip.bicep",
+    "pip": "templates/public-ip.bicep",
+    "data-factory": "templates/azure-data-factory.bicep",
+    "azure-data-factory": "templates/azure-data-factory.bicep",
+    "adf": "templates/azure-data-factory.bicep",
+    "synapse": "templates/azure-synapse-analytics.bicep",
+    "azure-synapse-analytics": "templates/azure-synapse-analytics.bicep",
 }
 
 # Resource Type to Azure Provider mapping for azure_check_resource and resource ID lookup
+# Both short forms (nsp, uami, acr) and long forms (network-security-perimeter) are supported
 RESOURCE_TYPE_PROVIDER_MAP = {
+    # Network Security Perimeter (short: nsp)
     "nsp": "Microsoft.Network/networkSecurityPerimeters",
+    "network-security-perimeter": "Microsoft.Network/networkSecurityPerimeters",
+    
+    # Log Analytics
     "log-analytics": "Microsoft.OperationalInsights/workspaces",
+    "law": "Microsoft.OperationalInsights/workspaces",
+    
+    # Storage
     "storage-account": "Microsoft.Storage/storageAccounts",
+    "storage": "Microsoft.Storage/storageAccounts",
+    
+    # Key Vault (short: kv)
     "key-vault": "Microsoft.KeyVault/vaults",
+    "kv": "Microsoft.KeyVault/vaults",
+    
+    # Azure OpenAI
     "openai": "Microsoft.CognitiveServices/accounts",
+    "azure-openai": "Microsoft.CognitiveServices/accounts",
+    
+    # AI Services
     "ai-search": "Microsoft.Search/searchServices",
     "ai-foundry": "Microsoft.CognitiveServices/accounts",
     "ai-services": "Microsoft.CognitiveServices/accounts",
     "ai-hub": "Microsoft.MachineLearningServices/workspaces",
     "ai-project": "Microsoft.MachineLearningServices/workspaces",
+    
+    # Cosmos DB
     "cosmos-db": "Microsoft.DocumentDB/databaseAccounts",
-    "sql-db": "Microsoft.Sql/servers",
+    "cosmosdb": "Microsoft.DocumentDB/databaseAccounts",
+    
+    # Fabric
     "fabric-capacity": "Microsoft.Fabric/capacities",
+    "fabric": "Microsoft.Fabric/capacities",
+    
+    # User Assigned Managed Identity (short: uami)
     "uami": "Microsoft.ManagedIdentity/userAssignedIdentities",
+    "user-assigned-managed-identity": "Microsoft.ManagedIdentity/userAssignedIdentities",
+    
+    # Container Registry (short: acr)
     "container-registry": "Microsoft.ContainerRegistry/registries",
+    "acr": "Microsoft.ContainerRegistry/registries",
+    
+    # Compute/Web
     "logic-app": "Microsoft.Logic/workflows",
     "function-app": "Microsoft.Web/sites",
     "app-service": "Microsoft.Web/sites",
+    
+    # Synapse (short: synapse)
     "synapse": "Microsoft.Synapse/workspaces",
+    "azure-synapse-analytics": "Microsoft.Synapse/workspaces",
+    
+    # Data Factory (short: adf)
     "data-factory": "Microsoft.DataFactory/factories",
+    "azure-data-factory": "Microsoft.DataFactory/factories",
+    "adf": "Microsoft.DataFactory/factories",
+    
+    # Networking
+    "public-ip": "Microsoft.Network/publicIPAddresses",
+    "pip": "Microsoft.Network/publicIPAddresses",
     "front-door": "Microsoft.Network/frontDoors",
+    
+    # VMs and Cache
     "virtual-machine": "Microsoft.Compute/virtualMachines",
+    "vm": "Microsoft.Compute/virtualMachines",
     "redis-cache": "Microsoft.Cache/redis",
     "redis-enterprise": "Microsoft.Cache/redisEnterprise",
 }
 
-# Pipeline YAML Templates
-# Maps pipeline types to YAML template files
-# Non-1ES = dev/non-prod, 1ES = prod
+# ============================================================================
+# PIPELINE YAML TEMPLATES
+# ============================================================================
+# Pipeline YAML Templates (similar to Bicep TEMPLATE_MAP)
+# To add new pipeline templates:
+#   1. Add your .yml file to agent/templates/
+#   2. Add entry to PIPELINE_TEMPLATE_MAP below
+#
+# Example: Add "MyPipeline.yml" → add: "my-pipeline": "templates/MyPipeline.yml"
+
 PIPELINE_TEMPLATE_MAP = {
-    "credscan": "templates/credscan_Pipeline.yml",           # Dev/Non-Prod
-    "credscan-1es": "templates/credscan_1ES_Pipeline.yml",  # Prod (1ES)
+    "credscan": "templates/credscan_Pipeline.yml",           # Standard credscan pipeline (non-production)
+    "credscan-1es": "templates/credscan_1ES_Pipeline.yml",   # 1ES pipeline template (production)
+    # Add more pipeline templates here following the pattern:
+    # "template-name": "templates/TemplateName.yml",
 }
 
-# Pipeline type keywords for auto-detection
+# Pipeline type keywords for auto-detection (smart defaults)
 PIPELINE_TYPE_KEYWORDS = {
     "1es": "credscan-1es",
     "prod": "credscan-1es",
@@ -177,7 +208,8 @@ OP_SCRIPTS = {
     "permissions": "list-azure-permissions.ps1",
     "resources": "list-resources.ps1",
     "create-rg": "create-resourcegroup.ps1",
-    "deploy-bicep": "deploy-bicep.ps1"
+    "deploy-bicep": "deploy-bicep.ps1",
+    "post-deploy-function-app": "post-deploy-function-app.ps1"
 }
 
 # ============================================================================
@@ -185,7 +217,7 @@ OP_SCRIPTS = {
 # ============================================================================
 
 def run_command(command: list[str]) -> str:
-    """Generic command runner."""
+    """Generic command runner with enhanced error reporting."""
     try:
         result = subprocess.run(
             command,
@@ -195,13 +227,36 @@ def run_command(command: list[str]) -> str:
             encoding='utf-8',
             check=False,
             stdin=subprocess.DEVNULL,  # Prevents hanging on prompts
-            timeout=120
+            timeout=600
         )
-        return result.stdout
+        
+        # Build output with clear error formatting
+        output_parts = []
+        
+        # Add stdout if present
+        if result.stdout and result.stdout.strip():
+            output_parts.append(result.stdout.strip())
+        
+        # Add stderr with clear error marker if present
+        if result.stderr and result.stderr.strip():
+            stderr_lines = result.stderr.strip()
+            # Check if stderr contains actual errors or just warnings/verbose output
+            if result.returncode != 0 or any(err_word in stderr_lines.lower() for err_word in ['error', 'failed', 'exception', 'cannot', 'unauthorized', 'forbidden', 'not found']):
+                output_parts.append(f"\n═══════════════════════════════════════════════════════════\n✗ ERROR DETAILS:\n═══════════════════════════════════════════════════════════\n{stderr_lines}")
+            else:
+                # Just append as additional info if not a clear error
+                output_parts.append(stderr_lines)
+        
+        # Add exit code info if command failed
+        if result.returncode != 0:
+            output_parts.append(f"\n[Exit Code: {result.returncode}]")
+        
+        return "\n".join(output_parts) if output_parts else "Command completed with no output"
+        
     except subprocess.TimeoutExpired:
-        return f"Error: Command timed out after 120 seconds"
+        return f"✗ ERROR: Command timed out after 600 seconds\n\nCommand: {' '.join(command)}\n\nThis usually indicates a hanging process or very slow operation."
     except Exception as e:
-        return f"Error running command {' '.join(command)}: {str(e)}"
+        return f"✗ EXECUTION ERROR:\n\nCommand: {' '.join(command)}\n\nError: {str(e)}\nError Type: {type(e).__name__}"
 
 # ============================================================================
 # HELPER FUNCTIONS - File System
@@ -225,16 +280,26 @@ def _detect_pipeline_type(pipeline_name: str, user_input: str = "") -> str:
     
     # Check for specific keywords
     for keyword, pipeline_type in PIPELINE_TYPE_KEYWORDS.items():
-        if keyword in combined:
+        if keyword in combined and pipeline_type in PIPELINE_TEMPLATE_MAP:
             return pipeline_type
     
-    # Default to regular credscan
+    # Try to match directly to a template name
+    normalized_name = pipeline_name.lower().replace('_', '-').replace(' ', '-')
+    if normalized_name in PIPELINE_TEMPLATE_MAP:
+        return normalized_name
+    
+    # Check if pipeline_name contains any template name as substring
+    for template_key in PIPELINE_TEMPLATE_MAP.keys():
+        if template_key in normalized_name or normalized_name in template_key:
+            return template_key
+    
+    # Default to credscan (standard non-production)
     return "credscan"
 
 def _get_pipeline_template(pipeline_type: str) -> str:
     """
     Gets the pipeline template path for a given pipeline type.
-    Falls back to available template if requested type doesn't exist.
+    Falls back to credscan if requested type doesn't exist.
     Returns the full path to the YAML template file.
     """
     # Try requested type first
@@ -244,10 +309,17 @@ def _get_pipeline_template(pipeline_type: str) -> str:
         if os.path.exists(template_path):
             return template_path
     
-    # Fallback: try alternate type (1ES <-> non-1ES)
-    alternate_type = "credscan" if "1es" in pipeline_type else "credscan-1es"
-    if alternate_type in PIPELINE_TEMPLATE_MAP:
-        template_rel = PIPELINE_TEMPLATE_MAP[alternate_type]
+    # Try normalized version
+    normalized_type = pipeline_type.lower().replace('_', '-').replace(' ', '-')
+    if normalized_type in PIPELINE_TEMPLATE_MAP:
+        template_rel = PIPELINE_TEMPLATE_MAP[normalized_type]
+        template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), template_rel)
+        if os.path.exists(template_path):
+            return template_path
+    
+    # Fallback: try credscan default
+    if "credscan" in PIPELINE_TEMPLATE_MAP:
+        template_rel = PIPELINE_TEMPLATE_MAP["credscan"]
         template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), template_rel)
         if os.path.exists(template_path):
             return template_path
@@ -271,6 +343,43 @@ def _get_rg_location(resource_group: str) -> str:
         return res.strip()
     except:
         return "eastus" # Fallback
+
+def _get_fabric_tenant_region() -> Optional[str]:
+    """
+    Gets the Fabric/Power BI tenant home region by querying existing capacities.
+    Returns the region of the first available capacity, which indicates the tenant's home region.
+    """
+    try:
+        # Get Power BI token
+        result = run_command([
+            "az", "account", "get-access-token", 
+            "--resource", "https://analysis.windows.net/powerbi/api", 
+            "--query", "accessToken", "-o", "tsv"
+        ])
+        token = result.strip()
+        
+        if not token or "ERROR" in token:
+            return None
+        
+        # Query Power BI API for capacities
+        import urllib.request
+        import json as json_module
+        
+        req = urllib.request.Request(
+            "https://api.powerbi.com/v1.0/myorg/capacities",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        with urllib.request.urlopen(req, timeout=30) as response:
+            data = json_module.loads(response.read().decode())
+            
+        if data.get("value") and len(data["value"]) > 0:
+            # Return the region of the first capacity (tenant home region)
+            return data["value"][0].get("region")
+        
+        return None
+    except Exception:
+        return None
 
 def _get_resource_id(resource_group: str, resource_type: str, parameters: Dict[str, str]) -> Optional[str]:
     """
@@ -368,6 +477,49 @@ def _format_deployment_details(resource_type: str, resource_group: str, paramete
         details.append(f"   Log Analytics Workspace: {workspace_name}")
         details.append(f"   Location: {location}")
     
+    elif resource_type == "container-registry":
+        registry_name = parameters.get("registryName", "N/A")
+        sku = parameters.get("sku", "N/A")
+        details.append(f"   Container Registry: {registry_name}")
+        details.append(f"   Location: {location}")
+        details.append(f"   SKU: {sku}")
+        details.append(f"   Login Server: {registry_name}.azurecr.io")
+    
+    elif resource_type == "function-app":
+        function_name = parameters.get("functionAppName", "N/A")
+        hosting_plan = parameters.get("hostingPlanType", "N/A")
+        runtime = parameters.get("runtimeStack", "N/A")
+        details.append(f"   Function App: {function_name}")
+        details.append(f"   Location: {location}")
+        details.append(f"   Hosting Plan: {hosting_plan}")
+        details.append(f"   Runtime: {runtime}")
+        details.append(f"   URL: https://{function_name}.azurewebsites.net")
+        details.append("")
+        details.append("Storage containers created automatically")
+        details.append("")
+        details.append("   ⚠️ ADMIN ACTION REQUIRED:")
+        details.append("   An admin with Owner role must assign 'Storage Blob Data Owner'")
+        details.append("   to the Function App's managed identity, then restart the app.")
+    
+    elif resource_type in ["azure-synapse-analytics", "synapse"]:
+        synapse_name = parameters.get("synapseName", "N/A")
+        storage_name = parameters.get("storageAccountName", "N/A")
+        filesystem_name = parameters.get("filesystemName", "N/A")
+        create_storage = parameters.get("createStorageAccount", "true").lower() == "true"
+        create_container = parameters.get("createContainer", "true").lower() == "true"
+        details.append(f"   Synapse Workspace: {synapse_name}")
+        details.append(f"   Location: {location}")
+        details.append(f"   Storage Account: {storage_name}")
+        details.append(f"   Filesystem/Container: {filesystem_name}")
+        details.append(f"   Storage Created: {'Yes' if create_storage else 'No (existing)'}")
+        details.append(f"   Container Created: {'Yes' if create_container else 'No (existing)'}")
+        details.append(f"   Synapse Studio: https://web.azuresynapse.net?workspace=%2Fsubscriptions%2F...%2F{synapse_name}")
+        details.append("")
+        details.append("   ⚠️ ADMIN ACTION REQUIRED:")
+        details.append("   An admin with Owner/User Access Administrator role must assign")
+        details.append(f"   'Storage Blob Data Contributor' role to the Synapse workspace")
+        details.append(f"   managed identity on storage account '{storage_name}'.")
+    
     else:
         # Generic fallback for other resources
         # Try to find resource name from common parameter names
@@ -430,6 +582,22 @@ def _deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str,
         # Bicep/Azure expects capitalized: Hot, Cool, Cold
         parameters["accessTier"] = parameters["accessTier"].lower().capitalize()
     
+    # Special handling for Fabric Capacity - auto-detect tenant region
+    if resource_type == "fabric-capacity":
+        # Automatically fetch tenant home region from existing Fabric capacities
+        tenant_region = _get_fabric_tenant_region()
+        
+        if tenant_region:
+            # Normalize region name (e.g., "West Central US" -> "westcentralus")
+            tenant_region_normalized = tenant_region.lower().replace(" ", "")
+            parameters["location"] = tenant_region_normalized
+            # Add info message about auto-detected region
+            print(f"[INFO] Auto-detected Fabric tenant region: {tenant_region} -> {tenant_region_normalized}")
+        else:
+            # Couldn't detect tenant region - use default and warn
+            parameters["location"] = "westcentralus"
+            print("[WARN] Could not detect Fabric tenant region. Using default: westcentralus")
+    
     # Build parameters string for PowerShell (semicolon-separated key=value pairs)
     param_string = ";".join([f"{k}={v}" for k, v in parameters.items()]) if parameters else ""
     
@@ -459,8 +627,35 @@ def _deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str,
     ) and "Failed" not in deploy_result
     
     if deployment_successful:
-        # Format deployment details
-        output = [_format_deployment_details(resource_type, resource_group, parameters)]
+        # Run post-deployment script for Function App
+        if resource_type == "function-app":
+            output_lines = ["Running post-deployment tasks for Function App..."]
+            post_script_path = _get_script_path(OP_SCRIPTS["post-deploy-function-app"])
+            
+            if os.path.exists(post_script_path):
+                post_params = {
+                    "ResourceGroup": resource_group,
+                    "FunctionAppName": parameters.get("functionAppName", ""),
+                    "StorageAccountName": parameters.get("storageAccountName", ""),
+                    "PrincipalId": "" # Will be fetched from deployment output
+                }
+                
+                # Get principal ID from deployment
+                try:
+                    import json
+                    deploy_json = json.loads(deploy_result) if deploy_result.strip().startswith("{") else {}
+                    principal_id = deploy_json.get("properties", {}).get("outputs", {}).get("systemAssignedIdentityPrincipalId", {}).get("value", "")
+                    if principal_id:
+                        post_params["PrincipalId"] = principal_id
+                        post_result = _run_powershell_script(post_script_path, post_params)
+                        output_lines.append(post_result)
+                except Exception as e:
+                    output_lines.append(f"Warning: Could not run post-deployment tasks: {str(e)}")
+            
+            output = output_lines + [_format_deployment_details(resource_type, resource_group, parameters)]
+        else:
+            # Format deployment details
+            output = [_format_deployment_details(resource_type, resource_group, parameters)]
         
         # Get resource ID for suggestions
         resource_id = _get_resource_id(resource_group, resource_type, parameters)
@@ -473,7 +668,6 @@ def _deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str,
             output.append("═" * 70)
             output.append("")
             output.append("This resource requires NSP attachment to resolve:")
-            output.append("   📋 [customazuremcpagent-NS2.2.1] Secure PaaS Resources")
             output.append("")
             output.append("═" * 70)
             output.append("")
@@ -515,29 +709,22 @@ def _deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str,
     return deploy_result
 
 def _run_powershell_script(script_path: str, parameters: dict) -> str:
+    """Execute PowerShell script with enhanced error reporting."""
     ps_executable = "pwsh" if shutil.which("pwsh") else "powershell"
-    cmd = [ps_executable, "-File", script_path]
+    cmd = [ps_executable, "-ExecutionPolicy", "Bypass", "-File", script_path]
     for k, v in parameters.items():
         if v is not None and v != "":
             cmd.append(f"-{k}")
             cmd.append(str(v))
-    return run_command(cmd)
-
-# --- INTENT PARSING ---
-
-def parse_intent(text: str) -> str:
-    t = normalize(text)
-    if is_greeting(t): return "greeting"
-    if any(k in t for k in ["menu", "help", "options"]): return "menu"
-    if any(k in t for k in ["list permissions", "show permissions", "check permissions"]): return "permissions"
-    if "list resources" in t or "show resources" in t or re.search(r"resources in", t): return "resources"
-    if any(k in t for k in ["create rg", "create resource group", "new rg", "new resource group"]): return "create-rg"
-    if any(k in t for k in ["create", "deploy", "provision"]): return "create"
-    return "unknown"
-
-def extract_resource_group(text: str) -> Optional[str]:
-    m = re.search(r"resources in ([A-Za-z0-9-_\.]+)", text, re.IGNORECASE)
-    return m.group(1) if m else None
+    
+    result = run_command(cmd)
+    
+    # Check for common PowerShell error patterns and enhance error message
+    if any(pattern in result for pattern in ['Write-Error', 'TerminatingError', 'Exception', 'At line:']):
+        # Already has error details from run_command
+        return result
+    
+    return result
 
 # --- TOOLS ---
 @mcp.tool()
@@ -616,7 +803,7 @@ def fabric_list_permissions(user_principal_name: str = None) -> str:
     try:
         return _run_powershell_script(script_path, params)
     except Exception as e:
-        return f"✗ Failed to list Fabric permissions: {e}"
+        return f"✗ FABRIC PERMISSIONS LIST FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- No Fabric access\n- Invalid user principal name\n- Fabric API unavailable"
 
 @mcp.tool()
 def azure_create_resource_group(resource_group_name: str, region: str, project_name: str) -> str:
@@ -648,7 +835,7 @@ def azure_check_resource(resource_group: str, resource_type: str) -> str:
     
     Args:
         resource_group: Resource group name to check
-        resource_type: Type of resource to check (nsp, log-analytics, storage-account, key-vault, openai, ai-search, cosmos-db, sql-db, fabric-capacity, uami)
+        resource_type: Type of resource to check (nsp, network-security-perimeter, log-analytics, storage-account, key-vault, openai, ai-search, cosmos-db, sql-db, fabric-capacity, uami)
     
     Returns:
         JSON string with resource information
@@ -657,6 +844,11 @@ def azure_check_resource(resource_group: str, resource_type: str) -> str:
         return json.dumps({"error": "Resource group name is required"})
     
     resource_type = resource_type.lower().strip()
+    
+    # Handle NSP aliases (network-security-perimeter, networksecurityperimeter, network security perimeter)
+    if "network" in resource_type and "security" in resource_type and "perimeter" in resource_type:
+        resource_type = "nsp"
+    
     if resource_type not in RESOURCE_TYPE_PROVIDER_MAP:
         supported_types = ', '.join(sorted(RESOURCE_TYPE_PROVIDER_MAP.keys()))
         return json.dumps({"error": f"Invalid resource_type. Supported: {supported_types}"})
@@ -671,7 +863,7 @@ def azure_check_resource(resource_group: str, resource_type: str) -> str:
     provider_type = RESOURCE_TYPE_PROVIDER_MAP[resource_type]
     
     result = run_command([
-        ps_executable, "-File", script_path,
+        ps_executable, "-ExecutionPolicy", "Bypass", "-File", script_path,
         "-ResourceGroupName", resource_group,
         "-ResourceType", resource_type,
         "-ProviderType", provider_type
@@ -746,7 +938,6 @@ def azure_check_resource(resource_group: str, resource_type: str) -> str:
 def azure_attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: str = None) -> str:
     """
     Attaches a resource to a Network Security Perimeter (NSP) with automatic NSP management.
-    This resolves compliance requirement [customazuremcpagent-NS2.2.1] Secure PaaS Resources.
     
     Workflow (strictly followed):
     1. Check if NSP exists in the resource group
@@ -831,7 +1022,7 @@ def azure_attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: 
         return "\n".join(output) + "\n\n✗ Error: attach-nsp.ps1 script not found"
     
     result = run_command([
-        ps_executable, "-File", attach_nsp_script,
+        ps_executable, "-ExecutionPolicy", "Bypass", "-File", attach_nsp_script,
         "-ResourceGroupName", resource_group,
         "-NSPName", nsp_name,
         "-ResourceId", resource_id
@@ -850,8 +1041,6 @@ def azure_attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: 
     output.append("=" * 70)
     output.append("✓ WORKFLOW COMPLETED")
     output.append("")
-    output.append(f"[customazuremcpagent-NS2.2.1] Compliance requirement resolved.")
-    output.append("")
     output.append("Summary:")
     output.append(f"   • Resource Group: {resource_group}")
     output.append(f"   • NSP Name: {nsp_name}")
@@ -863,7 +1052,6 @@ def azure_attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: 
 def azure_attach_diagnostic_settings(resource_group: str, workspace_id: str = None, resource_id: str = None) -> str:
     """
     Attaches diagnostic settings to a resource with automatic Log Analytics Workspace management.
-    This resolves compliance requirement [customazuremcpagent-Monitoring] Resource Monitoring & Compliance.
     
     Workflow (strictly followed):
     1. Check if Log Analytics Workspace exists in the resource group
@@ -962,7 +1150,7 @@ def azure_attach_diagnostic_settings(resource_group: str, workspace_id: str = No
         return "\n".join(output) + "\n\n✗ Error: attach-log-analytics.ps1 script not found"
     
     result = run_command([
-        ps_executable, "-File", attach_law_script,
+        ps_executable, "-ExecutionPolicy", "Bypass", "-File", attach_law_script,
         "-ResourceGroupName", resource_group,
         "-WorkspaceId", workspace_id,
         "-ResourceId", resource_id
@@ -980,8 +1168,6 @@ def azure_attach_diagnostic_settings(resource_group: str, workspace_id: str = No
     output.append("")
     output.append("=" * 70)
     output.append("✓ WORKFLOW COMPLETED")
-    output.append("")
-    output.append(f"[customazuremcpagent-Monitoring] Compliance requirement resolved.")
     output.append("")
     output.append("Summary:")
     output.append(f"   • Resource Group: {resource_group}")
@@ -1001,6 +1187,24 @@ def azure_get_bicep_requirements(resource_type: str) -> str:
         return f"Unknown resource_type. Valid: {', '.join(TEMPLATE_MAP.keys())}"
     template_path = _get_template_path(TEMPLATE_MAP[resource_type])
     params = _parse_bicep_parameters(template_path)
+    
+    # Special handling for fabric-capacity - location is auto-detected, not required from user
+    if resource_type == "fabric-capacity":
+        # Get tenant region for display
+        tenant_region = _get_fabric_tenant_region()
+        region_info = f" (auto-detected: {tenant_region})" if tenant_region else " (will use default: westcentralus)"
+        
+        structured = {
+            "required": [p for p, (req, _) in params.items() if req and p != "location"],
+            "optional": [p for p, (req, _) in params.items() if not req and p != "location"],
+            "defaults": {p: default for p, (req, default) in params.items() if default is not None and p != "location"},
+            "auto_detected": {
+                "location": tenant_region if tenant_region else "westcentralus"
+            },
+            "note": f"Location is automatically set to your Fabric tenant's home region{region_info}. You do not need to specify it."
+        }
+        return json.dumps(structured, indent=2)
+    
     structured = {
         "required": [p for p, (req, _) in params.items() if req],
         "optional": [p for p, (req, _) in params.items() if not req],
@@ -1041,8 +1245,15 @@ def azure_create_resource(resource_type: str, resource_group: str = None, parame
     # Get template requirements
     template_path = _get_template_path(TEMPLATE_MAP[resource_type])
     param_info = _parse_bicep_parameters(template_path)
-    required_params = [p for p, (req, _) in param_info.items() if req]
-    optional_params = [p for p, (req, _) in param_info.items() if not req]
+    
+    # Special handling for fabric-capacity - location is auto-detected from tenant
+    if resource_type == "fabric-capacity":
+        # Remove location from required params - it will be auto-detected
+        required_params = [p for p, (req, _) in param_info.items() if req and p != "location"]
+        optional_params = [p for p, (req, _) in param_info.items() if not req and p != "location"]
+    else:
+        required_params = [p for p, (req, _) in param_info.items() if req]
+        optional_params = [p for p, (req, _) in param_info.items() if not req]
     
     # Check for missing parameters
     missing_params = []
@@ -1067,7 +1278,14 @@ def azure_create_resource(resource_type: str, resource_group: str = None, parame
             else:
                 response.append(f"  - {param}: (required)")
         
-        if optional_params:
+        # Special message for fabric-capacity about auto-detected location
+        if resource_type == "fabric-capacity":
+            tenant_region = _get_fabric_tenant_region()
+            if tenant_region:
+                response.append(f"\n🔄 Location: Auto-detected from your Fabric tenant's home region: {tenant_region}")
+            else:
+                response.append(f"\n🔄 Location: Will be auto-detected from your Fabric tenant (default: westcentralus)")
+        elif optional_params:
             response.append(f"\nOptional parameters: {', '.join(optional_params)}")
         
         response.append(f"\nOnce you provide these, I'll:\n")
@@ -1104,56 +1322,6 @@ def azure_deploy_bicep_resource(resource_group: str, resource_type: str, paramet
         return f"STOP: {msg}\n\nPlease call get_bicep_requirements('{resource_type}') to see all required parameters.\nRequired: {', '.join(req_params) if req_params else 'unknown'}"
     
     return _deploy_bicep(resource_group, resource_type, parameters)
-
-@mcp.tool()
-def agent_dispatch(user_input: str) -> str:
-    """High-level dispatcher for conversational commands."""
-    intent = parse_intent(user_input)
-    if intent in ("greeting", "menu"): return get_action_menu()
-    if intent == "permissions": return azure_list_permissions(force_refresh=True)
-    if intent == "resources":
-        rg = extract_resource_group(user_input)
-        return azure_list_resources(rg) if rg else azure_list_resources()
-    if intent == "create-rg":
-        return (
-            "Resource Group creation flow:\n\n"
-            "Please provide:\n"
-            "1. Resource Group Name\n"
-            "2. Region (e.g., eastus, westus2, westeurope)\n"
-            "3. Project Name (for tagging)\n\n"
-            "Then call: azure_create_resource_group(resource_group_name, region, project_name)"
-        )
-    if intent == "create":
-        return (
-            "Azure Resource Creation (Interactive Mode)\n\n"
-            "To create a resource, use: azure_create_resource(resource_type, ...)\n\n"
-            "Example: azure_create_resource('storage-account')\n"
-            "The agent will then ask you for required parameters interactively.\n\n"
-            "Supported resource types:\n"
-            "  - storage-account (ADLS Gen2 enabled by default)\n"
-            "  - key-vault\n"
-            "  - openai\n"
-            "  - ai-search\n"
-            "  - ai-foundry\n"
-            "  - cosmos-db\n"
-            "  - fabric-capacity\n"
-            "  - nsp\n"
-            "  - uami\n"
-            "  - log-analytics\n\n"
-            "Manual Compliance Tools:\n"
-            "  NSP Management:\n"
-            "    - azure_check_resource(rg, 'nsp') - Check for NSP\n"
-            "    - azure_create_resource('nsp', ...) - Create NSP if doesn't exist\n"
-            "    - azure_attach_to_nsp() - Attach resource to NSP\n"
-            "  Log Analytics Management:\n"
-            "    - azure_check_resource(rg, 'log-analytics') - Check for workspace\n"
-            "    - azure_create_resource('log-analytics', ...) - Create workspace if doesn't exist\n"
-            "    - azure_attach_diagnostic_settings() - Configure diagnostic settings\n\n"
-            "Tip: You can provide all parameters at once if you know them:\n"
-            "   azure_create_resource('storage-account', resource_group='my-rg', \n"
-            "                        storageAccountName='mystg123', location='eastus', accessTier='Hot')"
-        )
-    return "Unrecognized command. " + get_action_menu()
 
 @mcp.tool()
 def show_agent_instructions() -> str:
@@ -1206,7 +1374,7 @@ def ado_create_project(organization: str = None, project_name: str = None, repo_
         proj_out = _run_powershell_script(project_script, proj_params)
         return proj_out.strip()
     except Exception as e:
-        return f"✗ Project/Repo operation crashed: {e}"
+        return f"✗ PROJECT CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {project_script}\nParameters: {proj_params}"
 
 @mcp.tool()
 def ado_create_repo(organization: str = None, project_name: str = None, repo_name: str = None) -> str:
@@ -1249,7 +1417,7 @@ def ado_create_repo(organization: str = None, project_name: str = None, repo_nam
         out = _run_powershell_script(repo_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ Repository operation crashed: {e}"
+        return f"✗ REPOSITORY CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {repo_script}\nParameters: {params}"
 
 @mcp.tool()
 def ado_list_projects(organization: str = None) -> str:
@@ -1283,7 +1451,7 @@ def ado_list_projects(organization: str = None) -> str:
         out = _run_powershell_script(list_projects_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ List projects operation crashed: {e}"
+        return f"✗ LIST PROJECTS FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {list_projects_script}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- Missing Azure DevOps extension: Run 'az extension add --name azure-devops'\n- Invalid organization URL\n- No access to organization"
 
 @mcp.tool()
 def ado_list_repos(organization: str = None, project_name: str = None) -> str:
@@ -1323,7 +1491,7 @@ def ado_list_repos(organization: str = None, project_name: str = None) -> str:
         out = _run_powershell_script(list_repos_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ List repos operation crashed: {e}"
+        return f"✗ LIST REPOSITORIES FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {list_repos_script}\nParameters: {params}\n\nCommon causes:\n- Project does not exist\n- No access to project\n- Authentication issue"
 
 @mcp.tool()
 def ado_create_branch(organization: str = None, project_name: str = None, 
@@ -1375,37 +1543,123 @@ def ado_create_branch(organization: str = None, project_name: str = None,
         out = _run_powershell_script(branch_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ Branch creation operation crashed: {e}"
+        return f"✗ BRANCH CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {branch_script}\nParameters: {params}\n\nCommon causes:\n- Base branch does not exist\n- Branch already exists\n- No write access to repository"
 
 # ============================================================================
 # MCP TOOLS - Azure DevOps (Pipelines)
 # ============================================================================
 
 @mcp.tool()
+def ado_deploy_custom_yaml(organization: str, project_name: str, repo_name: str,
+                           branch: str, file_name: str, yaml_content: str,
+                           folder_path: str = "pipelines") -> str:
+    """
+    Deploys custom YAML content directly to an Azure DevOps repository.
+    Use this when you have YAML content to deploy (not using templates).
+    
+    Args:
+        organization: Azure DevOps organization URL (required)
+        project_name: Existing project name (required)
+        repo_name: Existing repository name (required)
+        branch: Branch to deploy to (required, e.g., 'main', 'dev')
+        file_name: Target filename/display name for the YAML file (required, e.g., 'sourcebranchvalidation.yml')
+        yaml_content: The actual YAML content to deploy (required - paste full YAML here)
+        folder_path: Folder in repo for YAML (defaults to 'pipelines')
+    
+    Returns:
+        Deployment status and YAML location
+    """
+    # Validate required parameters
+    missing = []
+    if not organization or not organization.strip():
+        missing.append("organization (Azure DevOps org URL)")
+    if not project_name or not project_name.strip():
+        missing.append("project_name (existing project)")
+    if not repo_name or not repo_name.strip():
+        missing.append("repo_name (existing repo)")
+    if not branch or not branch.strip():
+        missing.append("branch (target branch, e.g., 'main', 'dev')")
+    if not file_name or not file_name.strip():
+        missing.append("file_name (display name for YAML, e.g., 'sourcebranchvalidation.yml')")
+    if not yaml_content or not yaml_content.strip():
+        missing.append("yaml_content (the actual YAML content to deploy)")
+    
+    if missing:
+        return (
+            "Deploy Custom YAML - Missing Required Parameters\n\n"
+            "Please provide:\n"
+            + "\n".join([f"  - {m}" for m in missing]) +
+            "\n\nExample usage:\n"
+            "  organization: 'https://dev.azure.com/myorg'\n"
+            "  project_name: 'MyProject'\n"
+            "  repo_name: 'MyRepo'\n"
+            "  branch: 'dev'\n"
+            "  file_name: 'my-pipeline.yml'\n"
+            "  yaml_content: '<paste your YAML content>'"
+        )
+    
+    # Normalize organization to URL
+    if not organization.strip().lower().startswith("http"):
+        organization = f"https://dev.azure.com/{organization.strip()}"
+    
+    # Ensure file_name has .yml extension
+    if not file_name.endswith('.yml') and not file_name.endswith('.yaml'):
+        file_name = f"{file_name}.yml"
+    
+    deploy_script = _get_script_path("deploy-pipeline-yaml.ps1")
+    if not os.path.exists(deploy_script):
+        return "Error: deploy-pipeline-yaml.ps1 not found"
+    
+    params = {
+        "Organization": organization,
+        "ProjectName": project_name,
+        "RepoName": repo_name,
+        "TemplateName": file_name.replace('.yml', '').replace('.yaml', ''),
+        "Branch": branch,
+        "FolderPath": folder_path,
+        "CustomYamlContent": yaml_content,
+        "YamlFileName": file_name
+    }
+    
+    try:
+        out = _run_powershell_script(deploy_script, params)
+        return out.strip()
+    except Exception as e:
+        return f"✗ CUSTOM YAML DEPLOYMENT FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {deploy_script}\nParameters: {params}\n\nCommon causes:\n- Repository not initialized\n- Branch does not exist\n- No write access\n- Git authentication failed\n- Invalid YAML syntax"
+
+@mcp.tool()
 def ado_deploy_pipeline_yaml(organization: str = None, project_name: str = None, 
                         repo_name: str = None, pipeline_type: str = None,
-                        branch: str = None, folder_path: str = None) -> str:
+                        branch: str = None, folder_path: str = None,
+                        custom_yaml_content: str = None, yaml_file_name: str = None) -> str:
     """
-    Deploys a pipeline YAML template from agent/templates to an Azure DevOps repository.
-    
-    Template Auto-Selection:
-    - Available types: credscan (non-prod), credscan-1es (prod), credscan-prod (prod)
-    - System auto-detects based on keywords: '1ES', 'prod', 'production'
-    - More pipeline types can be added to PIPELINE_TEMPLATE_MAP
+    Deploys a pipeline YAML template from agent/templates OR custom YAML content to an Azure DevOps repository.
     
     Workflow:
-    1. Auto-selects template based on pipeline_type or keywords
-    2. Clones the repo at specified branch
-    3. Copies template to specified folder path
-    4. Commits and pushes to repository
+    1. If custom_yaml_content provided → deploys custom YAML
+    2. If pipeline_type matches PIPELINE_TEMPLATE_MAP entry → uses that template
+    3. Otherwise → prompts for custom YAML content
+    4. Clones repo, copies YAML to specified folder, commits and pushes
+    
+    Template Management (Similar to Bicep TEMPLATE_MAP):
+    - Templates are mapped in PIPELINE_TEMPLATE_MAP (see server.py)
+    - To add new templates:
+      1. Add .yml file to agent/templates/
+      2. Add entry to PIPELINE_TEMPLATE_MAP: "template-key": "templates/YourTemplate.yml"
+    
+    Available Templates:
+    - credscan: credscan_Pipeline.yml (standard non-production)
+    - credscan-1es: credscan_1ES_Pipeline.yml (production/1ES)
     
     Args:
         organization: Azure DevOps organization URL
         project_name: Existing project name
         repo_name: Existing repository name
-        pipeline_type: Pipeline type ('credscan' for non-prod, 'credscan-1es' or 'credscan-prod' for production)
+        pipeline_type: Template key from PIPELINE_TEMPLATE_MAP OR identifier for custom YAML
         branch: Branch to deploy to (defaults to 'main')
         folder_path: Folder in repo to deploy YAML (defaults to 'pipelines')
+        custom_yaml_content: Custom YAML content to deploy (optional - overrides template)
+        yaml_file_name: Custom filename for YAML (optional - defaults to pipeline_type.yml)
     
     Returns:
         Deployment status and YAML location
@@ -1422,75 +1676,101 @@ def ado_deploy_pipeline_yaml(organization: str = None, project_name: str = None,
     if not repo_name or not repo_name.strip():
         missing.append("repo_name (existing repo)")
     if not pipeline_type or not pipeline_type.strip():
-        missing.append(f"pipeline_type (available: {', '.join(PIPELINE_TEMPLATE_MAP.keys())})")
+        missing.append(f"pipeline_type (template name or custom identifier)")
     if not branch or not branch.strip():
         missing.append("branch (branch to deploy to, usually 'main')")
     if not folder_path or not folder_path.strip():
         missing.append("folder_path (folder in repo, e.g., 'pipelines')")
     
     if missing:
+        templates_list = "\n".join([f"  - {k}: {v}" for k, v in sorted(PIPELINE_TEMPLATE_MAP.items())])
+        
         return (
             "Deploy Pipeline YAML\n\n"
             "Please provide:\n"
             + "\n".join([f"  - {m}" for m in missing]) +
-            f"\n\nAvailable pipeline types:\n" +
-            "\n".join([f"  - {k}: {v}" for k, v in PIPELINE_TEMPLATE_MAP.items()])
+            f"\n\nAvailable pipeline templates:\n{templates_list}" +
+            "\n\nTo add more templates: Add .yml file to agent/templates/ and update PIPELINE_TEMPLATE_MAP in server.py" +
+            "\n\nAlternatively, provide custom_yaml_content to deploy custom YAML"
         )
 
-    # Auto-detect and get template
-    detected_type = _detect_pipeline_type(pipeline_type, pipeline_type)
-    template_basename = os.path.basename(PIPELINE_TEMPLATE_MAP.get(detected_type, PIPELINE_TEMPLATE_MAP["credscan"]))
-    
     deploy_script = _get_script_path("deploy-pipeline-yaml.ps1")
     if not os.path.exists(deploy_script):
         return "Error: deploy-pipeline-yaml.ps1 not found"
 
-    params = {
-        "Organization": organization,
-        "ProjectName": project_name,
-        "RepoName": repo_name,
-        "TemplateName": template_basename.replace(".yml", ""),
-        "Branch": branch,
-        "FolderPath": folder_path
-    }
+    # Check if using custom YAML or template
+    if custom_yaml_content and custom_yaml_content.strip():
+        # Deploy custom YAML content
+        params = {
+            "Organization": organization,
+            "ProjectName": project_name,
+            "RepoName": repo_name,
+            "TemplateName": pipeline_type,  # Used as base name if yaml_file_name not provided
+            "Branch": branch,
+            "FolderPath": folder_path,
+            "CustomYamlContent": custom_yaml_content
+        }
+        if yaml_file_name:
+            params["YamlFileName"] = yaml_file_name
+    else:
+        # Auto-detect and get template
+        detected_type = _detect_pipeline_type(pipeline_type, pipeline_type)
+        
+        # Check if template exists
+        if detected_type in PIPELINE_TEMPLATE_MAP:
+            template_basename = os.path.basename(PIPELINE_TEMPLATE_MAP[detected_type])
+            params = {
+                "Organization": organization,
+                "ProjectName": project_name,
+                "RepoName": repo_name,
+                "TemplateName": template_basename.replace(".yml", ""),
+                "Branch": branch,
+                "FolderPath": folder_path
+            }
+        else:
+            # Template not found - prompt user for custom YAML
+            return (
+                f"Pipeline template '{pipeline_type}' not found in agent/templates.\n\n"
+                f"Available templates: {', '.join(PIPELINE_TEMPLATE_MAP.keys())}\n\n"
+                "To deploy custom YAML, provide the custom_yaml_content parameter with your YAML content."
+            )
 
     try:
         out = _run_powershell_script(deploy_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ Deploy YAML operation crashed: {e}"
+        return f"✗ YAML DEPLOYMENT FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {deploy_script}\nParameters: {params}\n\nCommon causes:\n- Repository not initialized\n- Branch does not exist\n- No write access\n- Git authentication failed"
 
 @mcp.tool()
 def ado_create_pipeline(organization: str = None, project_name: str = None,
                           repo_name: str = None, pipeline_name: str = None,
-                          branch: str = None, pipeline_type: str = None) -> str:
+                          branch: str = None, pipeline_type: str = None,
+                          yaml_path: str = None) -> str:
     """
     Creates an Azure DevOps pipeline from YAML file in repository.
     
-    Template Auto-Selection:
-    - Detects pipeline type from pipeline_name or pipeline_type parameter
-    - Keywords: '1ES', 'prod', 'production' → selects production (1ES) pipeline
-    - Otherwise → selects standard non-production pipeline
-    - Auto-constructs yaml_path as: pipelines/{detected_template}.yml
-    
-    Available Pipeline Types:
-    - credscan: Standard credscan pipeline (non-production)
-    - credscan-1es: 1ES pipeline template (production, requires pool params)
-    - More types can be added to PIPELINE_TEMPLATE_MAP
+    Template Management (Similar to Bicep TEMPLATE_MAP):
+    - Pipeline templates are defined in PIPELINE_TEMPLATE_MAP
+    - Keywords: '1ES', 'prod', 'production' → selects 1ES template
+    - Auto-constructs yaml_path as: pipelines/{template_file}.yml
+    - OR use yaml_path parameter to specify a custom YAML file path
     
     Workflow:
-    1. Auto-detects pipeline type from pipeline_name keywords
-    2. Constructs yaml_path automatically
+    1. Auto-detects pipeline type from pipeline_name keywords (if yaml_path not provided)
+    2. Constructs yaml_path from PIPELINE_TEMPLATE_MAP (if yaml_path not provided)
     3. Checks if YAML exists in repository
     4. Creates pipeline referencing the YAML
+    
+    Note: YAML file must already exist in repository (use ado_deploy_pipeline_yaml first)
     
     Args:
         organization: Azure DevOps organization URL
         project_name: Existing project name
         repo_name: Existing repository name
-        pipeline_name: Name for pipeline (keywords '1ES'/'prod' trigger production template)
+        pipeline_name: Name for pipeline (keywords '1ES'/'prod' select production template)
         branch: Branch containing YAML (defaults to 'main')
-        pipeline_type: Optional explicit type override (credscan, credscan-1es)
+        pipeline_type: Optional explicit template type from PIPELINE_TEMPLATE_MAP (e.g., 'credscan', 'credscan-1es')
+        yaml_path: Optional custom YAML file path in repository (e.g., 'pipelines/sourcebranchvalidation.yml')
     
     Returns:
         Pipeline creation status and URL
@@ -1523,19 +1803,34 @@ def ado_create_pipeline(organization: str = None, project_name: str = None,
         if "1es" in pipeline_type or "prod" in pipeline_type:
             suggestion += "\nThis is a PRODUCTION pipeline (1ES template with pool parameters required)"
         else:
-            suggestion += "\nThis is a NON-PRODUCTION pipeline (standard template)"
+            suggestion += "\nThis is a standard pipeline template"
+        
+        templates_list = ', '.join(sorted(PIPELINE_TEMPLATE_MAP.keys())) if PIPELINE_TEMPLATE_MAP else "(none discovered)"
         
         return (
             "Create Azure DevOps Pipeline\n\n"
             "Please provide:\n"
             + "\n".join([f"  - {m}" for m in missing]) +
             suggestion +
-            f"\n\nAvailable types: {', '.join(PIPELINE_TEMPLATE_MAP.keys())}"
+            f"\n\nAvailable templates (auto-discovered): {templates_list}"
         )
 
     # Auto-construct yaml_path based on detected pipeline type
-    template_basename = os.path.basename(PIPELINE_TEMPLATE_MAP.get(pipeline_type, PIPELINE_TEMPLATE_MAP["credscan"]))
-    yaml_path = f"pipelines/{template_basename}"
+    if pipeline_type in PIPELINE_TEMPLATE_MAP:
+        template_basename = os.path.basename(PIPELINE_TEMPLATE_MAP[pipeline_type])
+    elif PIPELINE_TEMPLATE_MAP:
+        # Use first available template as fallback
+        first_key = sorted(PIPELINE_TEMPLATE_MAP.keys())[0]
+        template_basename = os.path.basename(PIPELINE_TEMPLATE_MAP[first_key])
+    else:
+        # No templates found, use generic name
+        template_basename = "pipeline.yml"
+    
+    # Use custom yaml_path if provided, otherwise construct from template
+    if yaml_path and yaml_path.strip():
+        final_yaml_path = yaml_path.strip()
+    else:
+        final_yaml_path = f"pipelines/{template_basename}"
 
     pipeline_script = _get_script_path("create-devops-pipeline.ps1")
     if not os.path.exists(pipeline_script):
@@ -1547,14 +1842,14 @@ def ado_create_pipeline(organization: str = None, project_name: str = None,
         "RepoName": repo_name,
         "PipelineName": pipeline_name,
         "Branch": branch,
-        "YamlPath": yaml_path
+        "YamlPath": final_yaml_path
     }
 
     try:
         out = _run_powershell_script(pipeline_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ Create pipeline operation crashed: {e}"
+        return f"✗ PIPELINE CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {pipeline_script}\nParameters: {params}\n\nCommon causes:\n- YAML file does not exist in repository\n- No 'Build Administrators' permission\n- Invalid YAML path\n- Branch does not exist"
 
 # ============================================================================
 # MCP TOOLS - Microsoft Fabric (Workspaces, Git Integration)
@@ -1602,7 +1897,7 @@ def fabric_create_workspace(capacity_id: str = None, workspace_name: str = None,
         out = _run_powershell_script(workspace_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ Create workspace operation failed: {e}"
+        return f"✗ FABRIC WORKSPACE CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {workspace_script}\nParameters: {params}\n\nCommon causes:\n- Capacity does not exist or is not active\n- No Fabric admin access\n- Invalid capacity ID\n- Workspace name already exists"
 
 @mcp.tool()
 def fabric_attach_workspace_to_git(workspace_id: str = None, organization: str = None,
@@ -1663,7 +1958,7 @@ def fabric_attach_workspace_to_git(workspace_id: str = None, organization: str =
         out = _run_powershell_script(git_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ Attach Git operation failed: {e}"
+        return f"✗ FABRIC GIT ATTACHMENT FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {git_script}\nParameters: {params}\n\nCommon causes:\n- Workspace does not exist\n- Not a workspace admin\n- Repository/branch does not exist\n- No DevOps access\n- Git already connected to this workspace"
 
 def main():
     """Entry point for the MCP server."""
