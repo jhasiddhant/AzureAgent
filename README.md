@@ -17,9 +17,13 @@
    - AI Search
    - AI Foundry
    - Cosmos DB
+   - Azure Data Factory
+   - Azure Synapse Analytics
+   - Container Registry
    - Log Analytics Workspaces
    - Network Security Perimeters (NSP)
    - User Assigned Managed Identity (UAMI)
+   - Public IP
    - Fabric Capacity
 5. **Add Diagnostic Settings** - Configure Log Analytics monitoring for resources
 6. **NSP Attachment** - Configure Network Security Perimeter attachment for supported resources
@@ -28,15 +32,16 @@
 7. **Create DevOps Projects** - Set up new Azure DevOps projects with initial repositories
 8. **Create DevOps Repositories** - Add new Git repositories to existing projects
 9. **Create DevOps Branches** - Create branches in repositories from base branches
-10. **Deploy Pipeline YAML** - Deploy pipeline templates (CodeQL, 1ES) to repositories
-11. **Create DevOps Pipelines** - Create and configure Azure Pipelines from YAML files
-12. **List DevOps Projects** - View all projects in an organization
-13. **List DevOps Repositories** - View all repositories in a project
+10. **Deploy Pipeline YAML** - Deploy pipeline templates (credscan, 1ES) or custom YAML to repositories
+11. **Deploy Custom YAML** - Deploy custom YAML content directly to repositories
+12. **Create DevOps Pipelines** - Create and configure Azure Pipelines from YAML files
+13. **List DevOps Projects** - View all projects in an organization
+14. **List DevOps Repositories** - View all repositories in a project
 
 #### Microsoft Fabric Integration
-14. **Create Fabric Workspaces** - Create workspaces in Fabric capacities
-15. **Attach Workspace to Git** - Connect Fabric workspaces to Azure DevOps repositories
-16. **List Fabric Permissions** - View workspace permissions and access levels 
+15. **Create Fabric Workspaces** - Create workspaces in Fabric capacities
+16. **Attach Workspace to Git** - Connect Fabric workspaces to Azure DevOps repositories
+17. **List Fabric Permissions** - View workspace permissions and access levels 
 ---
 
 ## Prerequisites
@@ -64,7 +69,7 @@ Before installing the Azure customazuremcpagent MCP Agent, ensure you have the f
 - Access to Azure DevOps organization
 - Project Collection Admin permissions for creating projects
 - Project Admin permissions for creating repositories, and pipelines
-- Azure CLI authenticated (`az login` or `allow-no-subscriptions`)
+- Azure CLI authenticated (`az login` or `az login --allow-no-subscriptions`)
 
 ### Fabric Requirements
 
@@ -72,7 +77,7 @@ Before installing the Azure customazuremcpagent MCP Agent, ensure you have the f
 - Appropriate permissions to create and manage workspaces
 - Fabric capacity available for workspace creation
 - ADO Available for GIT integration
-- Azure CLI authenticated (`az login` or `allow-no-subscriptions`)
+- Azure CLI authenticated (`az login` or `az login --allow-no-subscriptions`)
 
 ---
 
@@ -91,9 +96,9 @@ Before installing the Azure customazuremcpagent MCP Agent, ensure you have the f
 ### Step 3: Install the Package
 
 1. When prompted for the package name, enter:
-   ```
-   customazuremcpagent
-   ```
+    ```
+    customazuremcpagent
+    ```
 2. Select the **latest version** when prompted
 3. Wait for the installation to complete
 
@@ -102,7 +107,7 @@ Add the following configuration to the `mcp.json` file:
 
 ```json
 {
-    "mcpServers": {
+    "servers": {
         "customazuremcpagent": {
             "type": "stdio",
             "command": "uvx",
@@ -163,7 +168,7 @@ create key vault
 ```
 
 The agent will interactively prompt you for required parameters and automatically:
-- ✅ Deploy the customazuremcpagent compliant resources
+    - ✅ Deploy the customazuremcpagent compliant resources
 - ✅ Configure Log Analytics diagnostic settings
 - ✅ Apply security best practices and compliance controls
 
@@ -186,12 +191,22 @@ create branch feature/new-feature from main in MyRepo
 
 #### Deploy Pipeline YAML
 ```
-deploy codeql pipeline yaml to MyRepo in pipelines folder
+deploy credscan pipeline yaml to MyRepo in pipelines folder
+```
+
+#### Deploy Custom YAML
+```
+deploy custom yaml content to MyRepo
 ```
 
 #### Create a Pipeline
 ```
 create pipeline named MyPipeline-1ES for MyRepo
+```
+
+#### Create Pipeline with Custom YAML Path
+```
+create pipeline named "Source Branch Validation" for MyRepo with yaml path pipelines/sourcebranchvalidation.yml
 ```
 
 #### List DevOps Projects

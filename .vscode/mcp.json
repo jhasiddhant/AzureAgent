@@ -1,9 +1,10 @@
 {
     "servers": {
         "azure-agent": {
-            "command": "python3",
+            "command": "${workspaceFolder}/.venv/bin/python",
             "args": [
-                "${workspaceFolder}/agent/server.py"
+                "-m",
+                "agent.server"
             ]
         }
     }
