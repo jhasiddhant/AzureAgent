@@ -1,8 +1,8 @@
-# Azure customazuremcpagent MCP Agent - Installation Guide
+# Azure Platform Agent - Installation Guide
 
 ## Description
 
-**Azure customazuremcpagent MCP Agent** is a Model Context Protocol (MCP) server that enables secure, compliant Azure resource deployment directly from VS Code using GitHub Copilot Chat. This agent helps you create customazuremcpagent compliant Azure resources with automatic compliance orchestration.
+**Azure Platform Agent** is a Model Context Protocol (MCP) server that enables secure, compliant Azure resource deployment directly from VS Code using GitHub Copilot Chat. This agent helps you create customazuremcpagent compliant Azure resources with automatic compliance orchestration.
 
 ### Capabilities
 
@@ -46,7 +46,7 @@
 
 ## Prerequisites
 
-Before installing the Azure customazuremcpagent MCP Agent, ensure you have the following installed:
+Before installing the Azure Platform Agent, ensure you have the following installed:
 
 ### Required Software
 

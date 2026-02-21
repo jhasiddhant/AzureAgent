@@ -1,8 +1,5 @@
-"""MCP Server for Azure resource deployment with compliance orchestration."""
-
-__version__ = "2.0.0"
-__author__ = "Siddhant Jha"
+"""Azure deployment agent with NSP and Log Analytics orchestration."""
 
 from agent.server import mcp, main
 
-__all__ = ["mcp", "main", "__version__"]
+__all__ = ["mcp", "main"]
