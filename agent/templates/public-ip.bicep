@@ -50,7 +50,12 @@ param idleTimeoutInMinutes int = 4
 param domainNameLabel string = ''
 
 @description('IP tags for routing and policy purposes.')
-param ipTags array = []
+param ipTags array = [
+  {
+    ipTagType: 'FirstPartyUsage'
+    tag: '/Unprivileged'
+  }
+]
 
 resource publicIP 'Microsoft.Network/publicIPAddresses@2024-01-01' = {
   name: publicIPName

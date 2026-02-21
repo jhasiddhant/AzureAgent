@@ -47,13 +47,6 @@ if ($organization -notlike "https://*") {
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Attaching Fabric Workspace to Git" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "Workspace ID : $workspaceId" -ForegroundColor Yellow
-Write-Host "Organization : $organization" -ForegroundColor Yellow
-Write-Host "Project      : $projectName" -ForegroundColor Yellow
-Write-Host "Repository   : $repoName" -ForegroundColor Yellow
-Write-Host "Branch       : $branchName" -ForegroundColor Yellow
-Write-Host "Directory    : $directoryName" -ForegroundColor Yellow
-Write-Host "==========================================" -ForegroundColor Cyan
 
 # Get Azure AD token for Fabric API
 Write-Host "Getting Azure AD token..." -ForegroundColor Green
@@ -63,6 +56,43 @@ if (-not $token) {
     Write-Error "Failed to get Azure AD token"
     exit 1
 }
+
+$headers = @{
+    "Authorization" = "Bearer $token"
+    "Content-Type" = "application/json"
+}
+
+# Check if workspaceId is a GUID or a name - if not a GUID, look it up
+$guidPattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+if ($workspaceId -notmatch $guidPattern) {
+    Write-Host "Looking up workspace ID for: $workspaceId" -ForegroundColor Yellow
+    
+    try {
+        $workspacesUrl = "https://api.fabric.microsoft.com/v1/workspaces"
+        $workspacesResponse = Invoke-RestMethod -Uri $workspacesUrl -Method GET -Headers $headers -TimeoutSec 30
+        
+        $workspace = $workspacesResponse.value | Where-Object { $_.displayName -eq $workspaceId -or $_.displayName -like "*$workspaceId*" } | Select-Object -First 1
+        
+        if (-not $workspace) {
+            Write-Output ('{"error": "Workspace not found: ' + $workspaceId + '"}')
+            exit 0
+        }
+        
+        $workspaceId = $workspace.id
+        Write-Host "Found workspace: $($workspace.displayName) (ID: $workspaceId)" -ForegroundColor Green
+    } catch {
+        Write-Output ('{"error": "Failed to lookup workspace: ' + $_.Exception.Message + '"}')
+        exit 0
+    }
+}
+
+Write-Host "Workspace ID : $workspaceId" -ForegroundColor Yellow
+Write-Host "Organization : $organization" -ForegroundColor Yellow
+Write-Host "Project      : $projectName" -ForegroundColor Yellow
+Write-Host "Repository   : $repoName" -ForegroundColor Yellow
+Write-Host "Branch       : $branchName" -ForegroundColor Yellow
+Write-Host "Directory    : $directoryName" -ForegroundColor Yellow
+Write-Host "==========================================" -ForegroundColor Cyan
 
 # Prepare Git connection request body
 $body = @{
@@ -78,10 +108,6 @@ $body = @{
 
 # Connect workspace to Git using Fabric REST API
 Write-Host "Connecting workspace to Git via Fabric API..." -ForegroundColor Green
-$headers = @{
-    "Authorization" = "Bearer $token"
-    "Content-Type" = "application/json"
-}
 
 try {
     $response = Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/workspaces/$workspaceId/git/connect" `
