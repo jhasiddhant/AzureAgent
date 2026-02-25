@@ -54,7 +54,7 @@ if ($capacityId -match "^/subscriptions/") {
         exit 1
     }
     
-    Write-Host "✓ Capacity is Active and Provisioned" -ForegroundColor Green
+    Write-Host "Capacity is Active and Provisioned" -ForegroundColor Green
     
     # Try to get capacity GUID from Power BI API first
     $powerBiToken = az account get-access-token --resource https://analysis.windows.net/powerbi/api --query accessToken -o tsv
@@ -71,7 +71,7 @@ if ($capacityId -match "^/subscriptions/") {
             
             if ($matchedCapacity) {
                 $capacityGuid = $matchedCapacity.id
-                Write-Host "✓ Found capacity GUID via Power BI API: $capacityGuid" -ForegroundColor Green
+                Write-Host "Found capacity GUID via Power BI API: $capacityGuid" -ForegroundColor Green
             }
         }
         catch {
@@ -107,10 +107,10 @@ if ($capacityId -match "^/subscriptions/") {
                 # For Fabric capacities, we can derive the GUID from the resource name or it may be in properties
                 if ($armResponse.properties -and $armResponse.properties.capacityId) {
                     $capacityGuid = $armResponse.properties.capacityId
-                    Write-Host "✓ Found capacity GUID via ARM API: $capacityGuid" -ForegroundColor Green
+                    Write-Host "Found capacity GUID via ARM API: $capacityGuid" -ForegroundColor Green
                 } else {
                     # If no explicit GUID, use the capacity name as-is (Fabric API may accept it)
-                    Write-Host "⚠ Could not find explicit capacity GUID. Will attempt to use capacity name directly." -ForegroundColor Yellow
+                    Write-Host "Could not find explicit capacity GUID. Will attempt to use capacity name directly." -ForegroundColor Yellow
                     Write-Host "  This may work if the Fabric service recognizes the capacity." -ForegroundColor Yellow
                     
                     # Try to find by listing all Fabric capacities in the subscription
@@ -120,7 +120,7 @@ if ($capacityId -match "^/subscriptions/") {
                     $foundCapacity = $allCapacities.value | Where-Object { $_.name -eq $capacityName }
                     if ($foundCapacity -and $foundCapacity.properties.capacityId) {
                         $capacityGuid = $foundCapacity.properties.capacityId
-                        Write-Host "✓ Found capacity GUID from subscription list: $capacityGuid" -ForegroundColor Green
+                        Write-Host "Found capacity GUID from subscription list: $capacityGuid" -ForegroundColor Green
                     }
                 }
             }
@@ -134,7 +134,7 @@ if ($capacityId -match "^/subscriptions/") {
     if (-not $capacityGuid) {
         Write-Host "" -ForegroundColor Red
         Write-Host "==========================================" -ForegroundColor Red
-        Write-Host "⚠ Capacity GUID Not Found" -ForegroundColor Red
+        Write-Host "Capacity GUID Not Found" -ForegroundColor Red
         Write-Host "==========================================" -ForegroundColor Red
         Write-Host ""
         Write-Host "The capacity '$capacityName' exists in Azure but is not yet visible" -ForegroundColor Yellow
@@ -203,12 +203,12 @@ try {
         
         if ($foundWorkspace -and $foundWorkspace.id) {
             $response = $foundWorkspace
-            Write-Host "✓ Found workspace in list" -ForegroundColor Green
+            Write-Host "Found workspace in list" -ForegroundColor Green
         } else {
             # Workspace ID not found - consider this a failure
             Write-Host "" -ForegroundColor Red
             Write-Host "==========================================" -ForegroundColor Red
-            Write-Host "✗ Workspace Creation Failed" -ForegroundColor Red
+            Write-Host "Workspace Creation Failed" -ForegroundColor Red
             Write-Host "==========================================" -ForegroundColor Red
             Write-Host "Workspace Name : $workspaceName" -ForegroundColor Yellow
             Write-Host "Capacity ID    : $capacityId" -ForegroundColor Yellow
@@ -242,7 +242,7 @@ try {
     if (-not $response.id) {
         Write-Host "" -ForegroundColor Red
         Write-Host "==========================================" -ForegroundColor Red
-        Write-Host "✗ Workspace Creation Failed" -ForegroundColor Red
+        Write-Host "Workspace Creation Failed" -ForegroundColor Red
         Write-Host "==========================================" -ForegroundColor Red
         Write-Host "FAILURE REASON: No Workspace ID returned" -ForegroundColor Red
         Write-Host "The workspace was NOT created successfully." -ForegroundColor Yellow
@@ -253,7 +253,7 @@ try {
     # SUCCESS: Workspace ID is present
     Write-Host "" -ForegroundColor Green
     Write-Host "==========================================" -ForegroundColor Green
-    Write-Host "✓ Workspace Created Successfully!" -ForegroundColor Green
+    Write-Host "Workspace Created Successfully!" -ForegroundColor Green
     Write-Host "==========================================" -ForegroundColor Green
     Write-Host "Workspace ID   : $($response.id)" -ForegroundColor Cyan
     Write-Host "Workspace Name : $($response.displayName)" -ForegroundColor Cyan
@@ -298,7 +298,7 @@ catch {
     
     Write-Host "" -ForegroundColor Red
     Write-Host "==========================================" -ForegroundColor Red
-    Write-Host "✗ Workspace Creation Failed" -ForegroundColor Red
+    Write-Host "Workspace Creation Failed" -ForegroundColor Red
     Write-Host "==========================================" -ForegroundColor Red
     Write-Host "Workspace Name : $workspaceName" -ForegroundColor Yellow
     Write-Host "Capacity ID    : $capacityId" -ForegroundColor Yellow

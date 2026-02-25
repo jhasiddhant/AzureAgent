@@ -6,26 +6,57 @@ param vnetName string
 @description('Azure region for the VNet (should match NSG location).')
 param location string
 
-@description('Address space for the VNet (e.g., 10.0.0.0/24 = 256 IPs, fits 8 subnets of /27).')
-param addressPrefix string = '10.0.0.0/24'
-
-@description('Name of the default subnet.')
-param subnetName string = 'subnet-1'
-
-@description('Starting IP address for the subnet (e.g., 10.0.0.0).')
-param subnetStartingAddress string = '10.0.0.0'
-
-@description('Subnet prefix length (CIDR notation, /27 = 32 addresses, 27 usable).')
-@minValue(24)
-@maxValue(29)
-param subnetSize int = 27
-
-@description('Resource ID of the existing Network Security Group to associate with the subnet.')
+@description('Resource ID of the existing Network Security Group to associate with subnets.')
 param networkSecurityGroupId string
 
-var subnetAddressPrefix = '${subnetStartingAddress}/${subnetSize}'
+@description('Optional: Custom address space in CIDR notation. If not provided, uses default /23 with predefined subnets.')
+param addressPrefix string = ''
 
-resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = {
+// Determine if using custom or default mode
+var useCustomMode = !empty(addressPrefix)
+
+// Default address space for predefined subnets (/23 = 512 IPs)
+var defaultAddressPrefix = '10.0.0.0/23'
+
+// Predefined subnet configuration (when no custom address provided)
+// Total: 352 IPs, fits in /23 with 160 IPs to spare
+var predefinedSubnets = [
+  {
+    name: 'InboundPrivateLink'
+    addressPrefix: '10.0.0.0/25'      // 128 IPs
+    delegation: ''
+  }
+  {
+    name: 'OutboundPrivateLink'
+    addressPrefix: '10.0.0.128/26'    // 64 IPs
+    delegation: ''
+  }
+  {
+    name: 'AzureFirewallSubnet'
+    addressPrefix: '10.0.0.192/26'    // 64 IPs (Azure requires /26 minimum)
+    delegation: ''
+  }
+  {
+    name: 'GatewaySubnet'
+    addressPrefix: '10.0.1.0/27'      // 32 IPs
+    delegation: ''
+  }
+  {
+    name: 'InboundDNSResolver'
+    addressPrefix: '10.0.1.32/27'     // 32 IPs
+    delegation: 'Microsoft.Network/dnsResolvers'
+  }
+  {
+    name: 'OutboundDNSResolver'
+    addressPrefix: '10.0.1.64/27'     // 32 IPs
+    delegation: 'Microsoft.Network/dnsResolvers'
+  }
+]
+
+// ============================================================================
+// CUSTOM MODE: Single default subnet with /28 (16 IPs)
+// ============================================================================
+resource vnetCustom 'Microsoft.Network/virtualNetworks@2024-07-01' = if (useCustomMode) {
   name: vnetName
   location: location
   properties: {
@@ -36,13 +67,12 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = {
     }
     subnets: [
       {
-        name: subnetName
+        name: 'default'
         properties: {
-          addressPrefix: subnetAddressPrefix
+          addressPrefix: cidrSubnet(addressPrefix, 28, 0)  // First /28 from provided range
           networkSecurityGroup: {
             id: networkSecurityGroupId
           }
-          delegations: []
           privateEndpointNetworkPolicies: 'NetworkSecurityGroupEnabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
           defaultOutboundAccess: false
@@ -52,7 +82,126 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = {
   }
 }
 
-output vnetId string = vnet.id
-output vnetName string = vnet.name
-output subnetId string = vnet.properties.subnets[0].id
-output subnetName string = vnet.properties.subnets[0].name
+// ============================================================================
+// DEFAULT MODE: Predefined 6 subnets for enterprise setup
+// ============================================================================
+resource vnetDefault 'Microsoft.Network/virtualNetworks@2024-07-01' = if (!useCustomMode) {
+  name: vnetName
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        defaultAddressPrefix
+      ]
+    }
+    subnets: [
+      // InboundPrivateLink - /25 (128 IPs)
+      {
+        name: predefinedSubnets[0].name
+        properties: {
+          addressPrefix: predefinedSubnets[0].addressPrefix
+          networkSecurityGroup: {
+            id: networkSecurityGroupId
+          }
+          privateEndpointNetworkPolicies: 'NetworkSecurityGroupEnabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
+          defaultOutboundAccess: false
+        }
+      }
+      // OutboundPrivateLink - /26 (64 IPs)
+      {
+        name: predefinedSubnets[1].name
+        properties: {
+          addressPrefix: predefinedSubnets[1].addressPrefix
+          networkSecurityGroup: {
+            id: networkSecurityGroupId
+          }
+          privateEndpointNetworkPolicies: 'NetworkSecurityGroupEnabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
+          defaultOutboundAccess: false
+        }
+      }
+      // AzureFirewallSubnet - /26 (64 IPs) - No NSG allowed on firewall subnet
+      {
+        name: predefinedSubnets[2].name
+        properties: {
+          addressPrefix: predefinedSubnets[2].addressPrefix
+          privateEndpointNetworkPolicies: 'Disabled'
+          privateLinkServiceNetworkPolicies: 'Disabled'
+          defaultOutboundAccess: false
+        }
+      }
+      // GatewaySubnet - /27 (32 IPs) - No NSG allowed on gateway subnet
+      {
+        name: predefinedSubnets[3].name
+        properties: {
+          addressPrefix: predefinedSubnets[3].addressPrefix
+          privateEndpointNetworkPolicies: 'Disabled'
+          privateLinkServiceNetworkPolicies: 'Disabled'
+          defaultOutboundAccess: false
+        }
+      }
+      // InboundDNSResolver - /27 (32 IPs) - Requires delegation
+      {
+        name: predefinedSubnets[4].name
+        properties: {
+          addressPrefix: predefinedSubnets[4].addressPrefix
+          networkSecurityGroup: {
+            id: networkSecurityGroupId
+          }
+          delegations: [
+            {
+              name: 'dnsResolverDelegation'
+              properties: {
+                serviceName: 'Microsoft.Network/dnsResolvers'
+              }
+            }
+          ]
+          privateEndpointNetworkPolicies: 'NetworkSecurityGroupEnabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
+          defaultOutboundAccess: false
+        }
+      }
+      // OutboundDNSResolver - /27 (32 IPs) - Requires delegation
+      {
+        name: predefinedSubnets[5].name
+        properties: {
+          addressPrefix: predefinedSubnets[5].addressPrefix
+          networkSecurityGroup: {
+            id: networkSecurityGroupId
+          }
+          delegations: [
+            {
+              name: 'dnsResolverDelegation'
+              properties: {
+                serviceName: 'Microsoft.Network/dnsResolvers'
+              }
+            }
+          ]
+          privateEndpointNetworkPolicies: 'NetworkSecurityGroupEnabled'
+          privateLinkServiceNetworkPolicies: 'Enabled'
+          defaultOutboundAccess: false
+        }
+      }
+    ]
+  }
+}
+
+// ============================================================================
+// OUTPUTS
+// ============================================================================
+output vnetId string = useCustomMode ? vnetCustom!.id : vnetDefault!.id
+output vnetName string = useCustomMode ? vnetCustom!.name : vnetDefault!.name
+output addressSpace string = useCustomMode ? addressPrefix : defaultAddressPrefix
+output mode string = useCustomMode ? 'custom' : 'default'
+
+// Subnet outputs for default mode
+output inboundPrivateLinkSubnetId string = !useCustomMode ? vnetDefault!.properties.subnets[0].id : ''
+output outboundPrivateLinkSubnetId string = !useCustomMode ? vnetDefault!.properties.subnets[1].id : ''
+output azureFirewallSubnetId string = !useCustomMode ? vnetDefault!.properties.subnets[2].id : ''
+output gatewaySubnetId string = !useCustomMode ? vnetDefault!.properties.subnets[3].id : ''
+output inboundDnsResolverSubnetId string = !useCustomMode ? vnetDefault!.properties.subnets[4].id : ''
+output outboundDnsResolverSubnetId string = !useCustomMode ? vnetDefault!.properties.subnets[5].id : ''
+
+// Subnet output for custom mode
+output defaultSubnetId string = useCustomMode ? vnetCustom!.properties.subnets[0].id : ''

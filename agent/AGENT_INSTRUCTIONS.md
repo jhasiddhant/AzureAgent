@@ -107,7 +107,7 @@ fabric_create_managed_private_endpoint(
 ```
 
 ## Resource Types
-Supported: `storage-account`, `key-vault`, `openai`, `ai-search`, `ai-foundry`, `cosmos-db`, `container-registry`, `function-app`, `fabric-capacity`, `log-analytics`, `public-ip`, `data-factory`, `synapse`, `uami`, `nsp`, `virtual-network`, `subnet`
+Supported: `storage-account`, `key-vault`, `openai`, `ai-search`, `ai-foundry`, `cosmos-db`, `container-registry`, `function-app`, `fabric-capacity`, `log-analytics`, `public-ip`, `data-factory`, `synapse`, `uami`, `nsp`, `virtual-network`, `subnet`, `document-intelligence`, `language-service`, `content-safety`
 
 ## Constraints
 - Use MCP tools only, never raw `az` commands for deployments

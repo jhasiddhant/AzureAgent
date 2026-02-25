@@ -1,5 +1,18 @@
 targetScope = 'resourceGroup'
 
+// ============================================================================
+// AZURE FUNCTION APP - FLEX CONSUMPTION PLAN
+// ============================================================================
+// This template creates a Function App with Flex Consumption hosting plan.
+// Requirements:
+// - Existing ADLS Gen2 Storage Account (for function content and deployment)
+// - Existing User Assigned Managed Identity (UAMI) with Storage Blob Data Owner
+// Configuration:
+// - System Assigned MI: Enabled but NOT used
+// - UAMI: Used for deployment and runtime storage access
+// - Public network access enabled for both Function App and ADLS
+// ============================================================================
+
 @description('Globally unique Function App name.')
 @minLength(2)
 @maxLength(60)
@@ -8,173 +21,197 @@ param functionAppName string
 @description('Region for the Function App.')
 param location string
 
-@description('Hosting plan type for the Function App.')
-@allowed([
-  'Consumption'
-  'FlexConsumption'
-  'Premium'
-  'AppServicePlan'
-])
-param hostingPlanType string
+@description('Existing Storage Account name (ADLS Gen2) for Function App content and deployment.')
+param storageAccountName string
 
-@description('App Service Plan name (required for Premium and AppServicePlan hosting types).')
-param appServicePlanName string = ''
-
-@description('App Service Plan SKU (required for Premium and AppServicePlan hosting types).')
-@allowed([
-  'Y1'              // Consumption
-  'FC1'             // Flex Consumption
-  'EP1'             // Premium V3 P1V3 - 122.64 USD/Month (8 GB, 2 vCPU)
-  'EP2'             // Premium V3 P2V3 - 245.28 USD/Month (16 GB, 4 vCPU)
-  'EP3'             // Premium V3 P3V3 - 490.56 USD/Month (32 GB, 8 vCPU)
-  'P0v3'            // Premium V3 P0V3 - 61.32 USD/Month (4 GB, 1 vCPU)
-  'P1v3'            // Premium V3 P1V3 - 122.64 USD/Month (8 GB, 2 vCPU)
-  'P1mv3'           // Premium V3 P1MV3 - 147.17 USD/Month (16 GB, 2 vCPU)
-  'P2v3'            // Premium V3 P2V3 - 245.28 USD/Month (16 GB, 4 vCPU)
-  'P3v3'            // Premium V3 P3V3 - 490.56 USD/Month (32 GB, 8 vCPU)
-  'B1'              // Basic B1 - 13.14 USD/Month (100 ACU, 1.75 GB, 1 vCPU)
-  'B2'              // Basic B2 - 26.28 USD/Month (200 ACU, 3.5 GB, 2 vCPU)
-  'B3'              // Basic B3 - 52.56 USD/Month (400 ACU, 7 GB, 4 vCPU)
-  'S1'              // Standard S1 - 69.35 USD/Month (100 ACU, 1.75 GB, 1 vCPU)
-  'S2'              // Standard S2 - 138.70 USD/Month (200 ACU, 3.5 GB, 2 vCPU)
-  'S3'              // Standard S3 - 277.40 USD/Month (400 ACU, 7 GB, 4 vCPU)
-  'P1v2'            // Premium V2 P1v2 - 146.00 USD/Month (210 ACU, 3.5 GB, 1 vCPU)
-  'P2v2'            // Premium V2 P2v2 - 292.00 USD/Month (420 ACU, 7 GB, 2 vCPU)
-  'P3v2'            // Premium V2 P3v2 - 584.00 USD/Month (840 ACU, 14 GB, 4 vCPU)
-])
-param appServicePlanSku string = 'EP1'
+@description('Existing User Assigned Managed Identity name.')
+param uamiName string
 
 @description('Runtime stack for the Function App.')
 @allowed([
-  'dotnet'
   'dotnet-isolated'
   'node'
   'python'
   'java'
   'powershell'
-  'custom'
 ])
-param runtimeStack string
+param runtimeStack string = 'python'
 
-@description('Runtime version (e.g., ~4 for Functions runtime, 3.11 for Python, 20 for Node).')
-param runtimeVersion string = '~4'
+@description('Runtime version for the selected stack.')
+param runtimeVersion string = '3.11'
 
-@description('Existing Storage Account name (ADLS Gen2) for Function App content.')
-param storageAccountName string
+@description('Maximum instance count for scaling (1-1000).')
+@minValue(1)
+@maxValue(1000)
+param maximumInstanceCount int = 100
 
-@description('Enable public network access.')
-param publicNetworkAccess bool = true
+@description('Instance memory in MB.')
+@allowed([
+  512
+  2048
+  4096
+])
+param instanceMemoryMB int = 2048
 
-// Storage account reference (must exist)
+@description('HTTP concurrency per instance.')
+@minValue(1)
+@maxValue(1000)
+param httpPerInstanceConcurrency int = 16
+
+// Reference existing Storage Account (ADLS Gen2)
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
 }
 
-// Application Insights
-resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: functionAppName
-  location: location
-  kind: 'web'
-  properties: {
-    Application_Type: 'web'
-    Request_Source: 'rest'
-    WorkspaceResourceId: null
-  }
+// Reference existing User Assigned Managed Identity
+resource uami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: uamiName
 }
 
-// App Service Plan (for all hosting types except ContainerApps)
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = if (hostingPlanType != 'ContainerApps') {
-  name: (hostingPlanType == 'Premium' || hostingPlanType == 'AppServicePlan') ? appServicePlanName : '${functionAppName}-plan'
+// ============================================================================
+// APP SERVICE PLAN (Flex Consumption)
+// ============================================================================
+
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+  name: '${functionAppName}-plan'
   location: location
-  kind: hostingPlanType == 'Premium' ? 'elastic' : (hostingPlanType == 'FlexConsumption' ? 'functionapp' : 'app')
+  kind: 'functionapp'
   sku: {
-    name: appServicePlanSku
-    tier: appServicePlanSku == 'Y1' ? 'Dynamic' : (contains(appServicePlanSku, 'EP') || contains(appServicePlanSku, 'P') ? 'ElasticPremium' : (contains(appServicePlanSku, 'B') ? 'Basic' : (appServicePlanSku == 'FC1' ? 'FlexConsumption' : 'Standard')))
+    name: 'FC1'
+    tier: 'FlexConsumption'
   }
   properties: {
-    reserved: contains(runtimeStack, 'dotnet') ? false : true // Linux for non-Windows runtimes
-    maximumElasticWorkerCount: hostingPlanType == 'Premium' ? 20 : null
+    reserved: true // Linux
   }
 }
 
-// Function App
+// ============================================================================
+// FUNCTION APP (Flex Consumption)
+// ============================================================================
+
 resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
   name: functionAppName
   location: location
-  kind: hostingPlanType == 'FlexConsumption' ? 'functionapp' : (hostingPlanType == 'Premium' || hostingPlanType == 'AppServicePlan' ? 'functionapp' : 'functionapp,linux,container')
+  kind: 'functionapp,linux'
   identity: {
-    type: 'SystemAssigned'
+    type: 'SystemAssigned, UserAssigned'
+    userAssignedIdentities: {
+      '${uami.id}': {}
+    }
   }
   properties: {
-    serverFarmId: hostingPlanType != 'ContainerApps' ? appServicePlan.id : null
+    serverFarmId: appServicePlan.id
     httpsOnly: true
-    publicNetworkAccess: publicNetworkAccess ? 'Enabled' : 'Disabled'
-    functionAppConfig: hostingPlanType == 'FlexConsumption' ? {
+    publicNetworkAccess: 'Enabled'
+    
+    // Flex Consumption specific configuration
+    functionAppConfig: {
       deployment: {
         storage: {
           type: 'blobContainer'
           value: '${storageAccount.properties.primaryEndpoints.blob}deployments'
           authentication: {
-            type: 'SystemAssignedIdentity'
+            type: 'UserAssignedIdentity'
+            userAssignedIdentityResourceId: uami.id
           }
         }
       }
       scaleAndConcurrency: {
-        maximumInstanceCount: 100
-        instanceMemoryMB: 2048
+        maximumInstanceCount: maximumInstanceCount
+        instanceMemoryMB: instanceMemoryMB
+        triggers: {
+          http: {
+            perInstanceConcurrency: httpPerInstanceConcurrency
+          }
+        }
       }
       runtime: {
         name: runtimeStack
-        version: runtimeStack == 'python' ? '3.11' : (runtimeStack == 'node' ? '20' : '8.0')
+        version: runtimeVersion
       }
-    } : null
+    }
     
     siteConfig: {
-      linuxFxVersion: hostingPlanType != 'FlexConsumption' && runtimeStack == 'python' ? 'Python|3.11' : (hostingPlanType != 'FlexConsumption' && runtimeStack == 'node' ? 'Node|20' : (hostingPlanType != 'FlexConsumption' && runtimeStack == 'dotnet-isolated' ? 'DOTNET-ISOLATED|8.0' : ''))
-      appSettings: concat([
+      appSettings: [
         {
-          name: 'AzureWebJobsStorage__accountName'
-          value: storageAccountName
+          name: 'AzureWebJobsStorage__blobServiceUri'
+          value: storageAccount.properties.primaryEndpoints.blob
+        }
+        {
+          name: 'AzureWebJobsStorage__clientId'
+          value: uami.properties.clientId
         }
         {
           name: 'AzureWebJobsStorage__credential'
           value: 'managedidentity'
         }
         {
+          name: 'AzureWebJobsStorage__queueServiceUri'
+          value: storageAccount.properties.primaryEndpoints.queue
+        }
+        {
+          name: 'AzureWebJobsStorage__tableServiceUri'
+          value: storageAccount.properties.primaryEndpoints.table
+        }
+        {
           name: 'FUNCTIONS_EXTENSION_VERSION'
-          value: runtimeVersion
+          value: '~4'
         }
-        {
-          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
-          value: appInsights.properties.InstrumentationKey
-        }
-        {
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsights.properties.ConnectionString
-        }
-      ], hostingPlanType != 'FlexConsumption' ? [
-        {
-          name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: runtimeStack
-        }
-      ] : [])
-
+      ]
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
       use32BitWorkerProcess: false
       cors: {
-        allowedOrigins: []
+        allowedOrigins: ['https://portal.azure.com']
         supportCredentials: false
       }
     }
   }
 }
 
+// ============================================================================
+// OUTPUTS
+// ============================================================================
+
 output functionAppId string = functionApp.id
 output functionAppName string = functionApp.name
 output functionAppUrl string = 'https://${functionApp.properties.defaultHostName}'
-output systemAssignedIdentityPrincipalId string = functionApp.identity.principalId
+output systemAssignedPrincipalId string = functionApp.identity.principalId
+output uamiPrincipalId string = uami.properties.principalId
+output uamiClientId string = uami.properties.clientId
 output storageAccountId string = storageAccount.id
-output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
-output appInsightsConnectionString string = appInsights.properties.ConnectionString
+output storageAccountBlobEndpoint string = storageAccount.properties.primaryEndpoints.blob
+output storageAccountDfsEndpoint string = storageAccount.properties.primaryEndpoints.dfs
+
+// ============================================================================
+// POST-DEPLOYMENT INSTRUCTIONS (Output as message)
+// ============================================================================
+
+output postDeploymentInstructions string = '''
+================================================================================
+POST-DEPLOYMENT STEPS REQUIRED
+================================================================================
+
+1. CREATE REQUIRED CONTAINERS IN ADLS:
+   Run the following Azure CLI commands to create required blob containers:
+   
+   az storage container create --name "azure-webjobs-hosts" --account-name <storageAccountName> --auth-mode login
+   az storage container create --name "azure-webjobs-secrets" --account-name <storageAccountName> --auth-mode login
+   az storage container create --name "deployments" --account-name <storageAccountName> --auth-mode login
+   az storage container create --name "scm-releases" --account-name <storageAccountName> --auth-mode login
+
+2. ROLE ASSIGNMENTS REQUIRED (Request Admin):
+   The following roles must be assigned on the ADLS Storage Account:
+   
+   For User Assigned Managed Identity (UAMI):
+   - Role: Storage Blob Data Contributor
+   - Role: Storage Account Contributor
+   - Scope: Storage Account
+
+3. VERIFY PUBLIC ACCESS:
+   - ADLS Storage Account: publicNetworkAccess should be 'Enabled'
+   - Function App: publicNetworkAccess is 'Enabled'
+
+================================================================================
+'''

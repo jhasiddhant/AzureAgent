@@ -80,23 +80,186 @@ def azure_login(selected_subscription_id: str = None) -> str:
 # ============================================================================
 
 @mcp.tool()
-def azure_list_permissions(user_principal_name: str = None, force_refresh: bool = True) -> str:
+def azure_list_roles(
+    role_type: str = None,
+    user_principal_name: str = None,
+    force_refresh: bool = True
+) -> str:
     """
-    Lists active Azure RBAC role assignments for resources and subscriptions.
+    Lists Azure roles for the current user - either active assignments or eligible PIM roles.
     
-    USE THIS TOOL when user asks to "list permissions" or "show permissions" without specifying the platform.
-    This is the DEFAULT permission listing tool.
+    USE THIS TOOL for ANY request about listing, showing, or viewing Azure roles/permissions.
     
-    Uses force_refresh=True by default to ensure recent role activations are captured.
+    BEHAVIOR BASED ON USER REQUEST:
+    
+    1. User asks for "active roles", "current roles", "my assignments", "what roles do I have":
+       → Use role_type="active"
+       
+    2. User asks for "PIM roles", "eligible roles", "roles I can activate":
+       → Use role_type="eligible"
+       
+    3. User just says "list my roles" or "show permissions" WITHOUT specifying type:
+       → ASK the user: "Would you like to see your active (currently assigned) roles 
+         or eligible (PIM roles available for activation)?"
+       → Do NOT guess - the user must specify which type they want
     
     Args:
+        role_type: REQUIRED - Type of roles to list:
+            - "active": Currently active/assigned RBAC roles (includes permanent assignments 
+              AND temporarily activated PIM roles)
+            - "eligible": Eligible PIM roles that can be activated (not yet active)
+            - If not specified, returns a message to ask the user which type they want
         user_principal_name: Optional user email. Defaults to current logged-in user.
+            Only applicable for role_type="active"
         force_refresh: Whether to force refresh the role cache. Default is True.
+            Only applicable for role_type="active"
     
     Returns:
-        Table of Azure role assignments (Reader, Contributor, Owner, etc.)
+        For role_type="active": Table of current Azure role assignments
+        For role_type="eligible": List of eligible PIM roles with max activation hours
+    
+    Examples:
+        # User says "show my active roles"
+        azure_list_roles(role_type="active")
+        
+        # User says "what PIM roles can I activate" or "list eligible roles"
+        azure_list_roles(role_type="eligible")
+        
+        # User says "list my roles" (ambiguous - must ask)
+        # First ask user which type, then call with their answer
     """
-    return azure.list_permissions(user_principal_name, force_refresh)
+    return azure.list_roles(role_type, user_principal_name, force_refresh)
+
+
+@mcp.tool()
+def azure_assign_rbac_role(
+    scope: str,
+    object_ids: list,
+    role_names: list,
+    principal_type: str
+) -> str:
+    """
+    Assigns Azure RBAC roles to Service Principals (SPN) or Managed Identities (MSI/WSI) ONLY.
+    
+    [POLICY] Direct RBAC role assignments to Users or Groups are NOT RECOMMENDED.
+    For user access, use Azure PIM (Privileged Identity Management) instead.
+    For application access, use Managed Identities or Service Principals.
+    
+    Supports multiple scenarios:
+    - Single role to single identity
+    - Multiple roles to single identity  
+    - Single role to multiple identities
+    - Multiple roles to multiple identities
+    
+    Args:
+        scope: Azure resource scope for the role assignment. Examples:
+            - Subscription: /subscriptions/<subscription-id>
+            - Resource Group: /subscriptions/<subscription-id>/resourceGroups/<rg-name>
+            - Resource: /subscriptions/<subscription-id>/resourceGroups/<rg-name>/providers/<provider>/<type>/<name>
+        object_ids: List of Object IDs (Principal IDs) to assign roles to. Can be a single ID or multiple.
+            For Service Principals: Use Object ID (not Application ID)
+            For Managed Identities: Use Principal ID
+        role_names: List of Azure RBAC role names to assign. Examples:
+            - "Owner", "Contributor", "Reader"
+            - "Storage Blob Data Contributor", "Storage Blob Data Reader"
+            - "Key Vault Secrets User", "Key Vault Administrator"
+            - "Cognitive Services OpenAI Contributor"
+            - "Azure AI Inference Deployment Operator"
+            - "Search Index Data Contributor", "Search Service Contributor"
+        principal_type: Type of principal receiving the role. MUST be one of:
+            - "ServicePrincipal": For App Registrations / Service Principals
+            - "ManagedIdentity": For System-assigned or User-assigned Managed Identities
+            NOTE: "User" and "Group" are NOT RECOMMENDED - use Azure PIM for user access instead.
+    
+    Returns:
+        Summary of role assignments with success/failure status for each.
+        Returns policy violation message with PIM guidance if User or Group is specified.
+    
+    Examples:
+        # Assign to Managed Identity
+        azure_assign_rbac_role(
+            scope="/subscriptions/xxx/resourceGroups/my-rg",
+            object_ids=["managed-identity-principal-id"],
+            role_names=["Storage Blob Data Contributor"],
+            principal_type="ManagedIdentity"
+        )
+        
+        # Assign to Service Principal
+        azure_assign_rbac_role(
+            scope="/subscriptions/xxx/resourceGroups/my-rg",
+            object_ids=["spn-object-id"],
+            role_names=["Cognitive Services Contributor"],
+            principal_type="ServicePrincipal"
+        )
+    """
+    return azure.assign_rbac_role(scope, object_ids, role_names, principal_type)
+
+
+@mcp.tool()
+def azure_activate_pim_roles(
+    justification: str,
+    activate_all: bool = False,
+    scopes: list = None,
+    role_names: list = None,
+    duration_hours: int = 0
+) -> str:
+    """
+    Activates eligible PIM (Privileged Identity Management) roles for the current user.
+    
+    IMPORTANT: Always ask the user to provide the justification. Do NOT guess or make up
+    a justification. The justification is required by policy and must come from the user.
+    
+    PIM provides just-in-time privileged access with automatic expiration.
+    Supports two modes:
+    
+    MODE 1 - Activate ALL eligible roles (activate_all=True):
+        Fetches all eligible PIM roles across ALL scopes and activates them.
+        Use this when user says "activate all PIMs" or "activate all my PIM roles".
+    
+    MODE 2 - Activate specific roles (activate_all=False):
+        Activates roles at specified scopes, optionally filtered by role names.
+        Use this when user provides specific scope and/or role names.
+    
+    Args:
+        justification: Business justification for the activation (required by policy).
+            MUST be provided by the user - do not guess this value.
+            Ask the user: "What is your business justification for this PIM activation?"
+        activate_all: If True, activates ALL eligible roles across ALL scopes.
+            If False (default), requires scopes parameter.
+        scopes: List of Azure scopes to activate roles on (required when activate_all=False).
+            Examples:
+            - ["/subscriptions/<sub-id>"] - Subscription level
+            - ["/subscriptions/<sub-id>/resourceGroups/<rg-name>"] - RG level
+        role_names: Optional. List of specific role names to activate.
+            If not provided, activates all eligible roles.
+            Examples: ["Contributor"], ["Contributor", "Storage Blob Data Owner"]
+        duration_hours: Optional. Duration in hours for all roles.
+            If 0 or not specified (default), uses max allowed duration per role from policy.
+            Each role may have different max duration - this uses each role's maximum.
+    
+    Returns:
+        Summary of activation results for each role:
+        - Success: Role activated with actual duration
+        - Skipped: Role already active
+        - PendingApproval: Role requires approval (check PIM portal)
+        - Failed: Activation failed with error message
+    
+    Examples:
+        # CASE 1: Activate ALL eligible PIM roles with max duration per role
+        # First ask user: "What is your business justification?"
+        azure_activate_pim_roles(
+            justification="<user provided justification>",
+            activate_all=True
+        )
+        
+        # CASE 2: Activate specific roles at specific scopes
+        azure_activate_pim_roles(
+            justification="<user provided justification>",
+            scopes=["/subscriptions/3ae194eb-3ad9-4d16-b344-0d36018a362a"],
+            role_names=["Contributor"]
+        )
+    """
+    return azure.activate_pim_roles(justification, activate_all, scopes, role_names, duration_hours)
 
 
 @mcp.tool()
@@ -458,6 +621,42 @@ def fabric_attach_workspace_to_git(workspace_id: str = None, organization: str =
     return fabric.attach_workspace_to_git(workspace_id, organization, project_name, repo_name, branch_name, directory_name)
 
 
+@mcp.tool()
+def fabric_assign_role(
+    workspace_identifier: str,
+    role_name: str,
+    principal_id: str,
+    principal_type: str
+) -> str:
+    """
+    Assigns a role to a user, group, service principal, or managed identity in a Microsoft Fabric workspace.
+    
+    Use this tool when a user wants to grant access to a Fabric workspace.
+    
+    Args:
+        workspace_identifier: Workspace name or workspace ID (GUID). Can use either.
+        role_name: Role to assign. Must be one of: Admin, Contributor, Member, Viewer
+            - Admin: Full control including managing permissions and deleting workspace
+            - Contributor: Can create, edit, delete items but cannot manage permissions
+            - Member: Can view and interact with items
+            - Viewer: Read-only access to workspace items
+        principal_id: Object ID (Principal ID) of the identity to grant access to.
+            For Users: User's Object ID from Entra ID
+            For Groups: Group's Object ID from Entra ID  
+            For Service Principals: Application's Object ID (not Application ID)
+            For Managed Identities: Principal ID of the managed identity
+        principal_type: Type of principal. Must be one of:
+            - User: For individual user accounts
+            - Group: For Entra ID security groups or Microsoft 365 groups
+            - ServicePrincipal: For app registrations / service principals
+            - ServicePrincipalProfile: For managed identities
+    
+    Returns:
+        Role assignment status with details
+    """
+    return fabric.assign_role(workspace_identifier, role_name, principal_id, principal_type)
+
+
 # ============================================================================
 # AZURE DEVOPS TOOLS - Projects & Repos
 # ============================================================================
@@ -622,6 +821,41 @@ def ado_create_pipeline(organization: str = None, project_name: str = None,
         Pipeline creation status and URL
     """
     return ado.create_pipeline(organization, project_name, repo_name, pipeline_name, branch, pipeline_type, yaml_path)
+
+
+@mcp.tool()
+def ado_assign_role(
+    organization: str = None,
+    project_name: str = None,
+    role_name: str = None,
+    principal_id: str = None
+) -> str:
+    """
+    Assigns a role (security group membership) to a principal in an Azure DevOps project.
+    
+    Common built-in roles:
+    - Project Administrators: Full control over project settings and security
+    - Build Administrators: Manage build pipelines and definitions
+    - Release Administrators: Manage release pipelines and deployments
+    - Contributors: Create and modify code, work items, and pipelines
+    - Readers: View-only access to project resources
+    - Endpoint Administrators: Manage service connections
+    - Endpoint Creators: Create service connections
+    
+    Custom roles/groups are also supported - provide the exact group name.
+    
+    If the role does not exist, the tool will return an error listing available groups.
+    
+    Args:
+        organization: Azure DevOps organization URL or name
+        project_name: Name of the Azure DevOps project
+        role_name: Name of the security group/role to assign
+        principal_id: Object ID (GUID) of the user, group, or service principal from Azure AD/Entra ID
+    
+    Returns:
+        Role assignment result with status and details
+    """
+    return ado.assign_role(organization, project_name, role_name, principal_id)
 
 
 # ============================================================================

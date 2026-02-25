@@ -2,46 +2,71 @@
 
 ## Description
 
-**Azure Platform Agent** is a Model Context Protocol (MCP) server that enables secure, compliant Azure resource deployment directly from VS Code using GitHub Copilot Chat. This agent helps you create customazuremcpagent compliant Azure resources with automatic compliance orchestration.
+**Azure Platform Agent** is a Model Context Protocol (MCP) server that enables secure, compliant Azure resource deployment directly from VS Code using GitHub Copilot Chat. This agent helps you create compliant Azure resources with automatic security compliance orchestration.
 
 ### Capabilities
 
+#### Azure Authentication & Account
+1. **Azure Login** - Login to Azure with browser authentication
+2. **List Subscriptions** - List accessible Azure subscriptions
+3. **Set Subscription** - Set active subscription context
+4. **Get Current User** - Get current subscription, tenant, and user info
+
 #### Azure Resource Management
-1. **List Azure Permissions** - View your active RBAC role assignments and access levels
-2. **List Azure Resources** - Browse resources across subscriptions and resource groups
-3. **Create Resource Groups** - Create Azure resource groups with project tagging
-4. **Create customazuremcpagent-Compliant Resources** - Deploy Azure resources with automatic compliance features:
+5. **Create Resource Groups** - Create Azure resource groups with project tagging
+6. **Create Compliant Resources** - Deploy Azure resources with automatic compliance features:
    - Storage Accounts (ADLS Gen2)
    - Key Vaults
    - Azure OpenAI
    - AI Search
-   - AI Foundry
+   - AI Content Safety
+   - AI Document Intelligence
+   - AI Language Service
    - Cosmos DB
+   - Log Analytics Workspaces
+   - User Assigned Managed Identity (UAMI)
+   - Network Security Perimeter (NSP)
+   - Fabric Capacity
+   - Container Registry (ACR)
+   - Function App (Flex Consumption)
+   - Public IP
    - Azure Data Factory
    - Azure Synapse Analytics
-   - Container Registry
-   - Log Analytics Workspaces
-   - Network Security Perimeters (NSP)
-   - User Assigned Managed Identity (UAMI)
-   - Public IP
-   - Fabric Capacity
-5. **Add Diagnostic Settings** - Configure Log Analytics monitoring for resources
-6. **NSP Attachment** - Configure Network Security Perimeter attachment for supported resources
+   - Network Security Group (NSG)
+   - Virtual Network (VNet)
+   - Subnet
+   - Private Endpoint
+   - Logic App (Consumption)
+7. **Get Resource Info** - Query resources, resource groups, and properties
+8. **Get Activity Log** - Retrieve activity logs for auditing
+9. **Update Tags** - Add, update, or replace resource tags
+
+#### Azure Security & Networking
+10. **Activate PIM Roles** - Activate eligible Privileged Identity Management roles
+11. **Assign RBAC Roles** - Assign RBAC roles to SPNs/Managed Identities
+12. **List Roles** - List active or eligible PIM roles
 
 #### Azure DevOps Integration
-7. **Create DevOps Projects** - Set up new Azure DevOps projects with initial repositories
-8. **Create DevOps Repositories** - Add new Git repositories to existing projects
-9. **Create DevOps Branches** - Create branches in repositories from base branches
-10. **Deploy Pipeline YAML** - Deploy pipeline templates (credscan, 1ES) or custom YAML to repositories
-11. **Deploy Custom YAML** - Deploy custom YAML content directly to repositories
-12. **Create DevOps Pipelines** - Create and configure Azure Pipelines from YAML files
 13. **List DevOps Projects** - View all projects in an organization
 14. **List DevOps Repositories** - View all repositories in a project
+15. **Create DevOps Projects** - Set up new Azure DevOps projects
+16. **Create DevOps Repositories** - Add new Git repositories to existing projects
+17. **Create DevOps Branches** - Create branches in repositories from base branches
+18. **Create DevOps Pipelines** - Create and configure Azure Pipelines from YAML files
+19. **Deploy Pipeline YAML** - Deploy pipeline templates (credscan, 1ES) to repositories
+20. **Deploy Custom YAML** - Deploy custom YAML content directly to repositories
+21. **Assign ADO Roles** - Assign security group roles in Azure DevOps
 
 #### Microsoft Fabric Integration
-15. **Create Fabric Workspaces** - Create workspaces in Fabric capacities
-16. **Attach Workspace to Git** - Connect Fabric workspaces to Azure DevOps repositories
-17. **List Fabric Permissions** - View workspace permissions and access levels 
+22. **Create Fabric Workspaces** - Create workspaces in Fabric capacities
+23. **Assign Fabric Roles** - Assign workspace roles (Admin/Contributor/Member/Viewer)
+24. **List Fabric Permissions** - View workspace permissions and access levels
+25. **Attach Workspace to Git** - Connect Fabric workspaces to Azure DevOps repositories
+26. **Create Managed Private Endpoint** - Create managed private endpoint for secure connectivity
+27. **List Managed Private Endpoints** - List managed private endpoints in workspace
+
+#### Agent Help
+28. **Show Agent Instructions** - Display complete agent documentation and usage guide 
 ---
 
 ## Prerequisites
@@ -96,9 +121,9 @@ Before installing the Azure Platform Agent, ensure you have the following instal
 ### Step 3: Install the Package
 
 1. When prompted for the package name, enter:
-    ```
-    customazuremcpagent
-    ```
+   ```
+   customazuremcpagent
+   ```
 2. Select the **latest version** when prompted
 3. Wait for the installation to complete
 
@@ -138,7 +163,7 @@ You should see the available actions menu confirming successful installation.
 
 ---
 
-## 💡 Usage Examples
+## Usage Examples
 
 ### Azure Resource Management
 
@@ -168,9 +193,9 @@ create key vault
 ```
 
 The agent will interactively prompt you for required parameters and automatically:
-    - ✅ Deploy the customazuremcpagent compliant resources
-- ✅ Configure Log Analytics diagnostic settings
-- ✅ Apply security best practices and compliance controls
+- Deploy compliant resources
+- Configure Log Analytics diagnostic settings
+- Apply security best practices and compliance controls
 
 ### Azure DevOps Operations
 

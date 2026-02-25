@@ -157,7 +157,7 @@ catch {
     # Display error in same format as success messages
     Write-Host "" -ForegroundColor Red
     Write-Host "==========================================" -ForegroundColor Red
-    Write-Host "✗ Git Connection Failed" -ForegroundColor Red
+    Write-Host "Git Connection Failed" -ForegroundColor Red
     Write-Host "==========================================" -ForegroundColor Red
     Write-Host "Workspace ID : $workspaceId" -ForegroundColor Yellow
     Write-Host "Repository   : $organization/$projectName/$repoName" -ForegroundColor Yellow

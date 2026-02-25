@@ -25,7 +25,7 @@ def list_permissions(user_principal_name: str = None) -> str:
     try:
         return run_powershell_script(script_path, params)
     except Exception as e:
-        return f"✗ FABRIC PERMISSIONS LIST FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- No Fabric access\n- Invalid user principal name\n- Fabric API unavailable"
+        return f"Fabric permissions list failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- No Fabric access\n- Invalid user principal name\n- Fabric API unavailable"
 
 
 def create_managed_private_endpoint(
@@ -58,7 +58,7 @@ def create_managed_private_endpoint(
     try:
         return run_powershell_script(script_path, params)
     except Exception as e:
-        return f"✗ FABRIC MANAGED PRIVATE ENDPOINT CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- No Admin/Contributor access to Fabric workspace\n- Invalid workspace ID or resource ID\n- Fabric capacity doesn't support managed private endpoints"
+        return f"Fabric managed private endpoint creation failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- No Admin/Contributor access to Fabric workspace\n- Invalid workspace ID or resource ID\n- Fabric capacity doesn't support managed private endpoints"
 
 
 def list_managed_private_endpoints(workspace_id: str) -> str:
@@ -77,7 +77,7 @@ def list_managed_private_endpoints(workspace_id: str) -> str:
     try:
         return run_powershell_script(script_path, params)
     except Exception as e:
-        return f"✗ FABRIC LIST MANAGED PRIVATE ENDPOINTS FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- Invalid workspace ID\n- No access to the workspace"
+        return f"Fabric list managed private endpoints failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- Invalid workspace ID\n- No access to the workspace"
 
 
 def create_workspace(capacity_id: str = None, workspace_name: str = None, 
@@ -106,7 +106,7 @@ def create_workspace(capacity_id: str = None, workspace_name: str = None,
         out = run_powershell_script(workspace_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ FABRIC WORKSPACE CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {workspace_script}\nParameters: {params}\n\nCommon causes:\n- Capacity does not exist or is not active\n- No Fabric admin access\n- Invalid capacity ID\n- Workspace name already exists"
+        return f"Fabric workspace creation failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {workspace_script}\nParameters: {params}\n\nCommon causes:\n- Capacity does not exist or is not active\n- No Fabric admin access\n- Invalid capacity ID\n- Workspace name already exists"
 
 
 def attach_workspace_to_git(workspace_id: str = None, organization: str = None,
@@ -148,4 +148,52 @@ def attach_workspace_to_git(workspace_id: str = None, organization: str = None,
         out = run_powershell_script(git_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ FABRIC GIT ATTACHMENT FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {git_script}\nParameters: {params}\n\nCommon causes:\n- Workspace does not exist\n- Not a workspace admin\n- Repository/branch does not exist\n- No DevOps access\n- Git already connected to this workspace"
+        return f"Fabric Git attachment failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {git_script}\nParameters: {params}\n\nCommon causes:\n- Workspace does not exist\n- Not a workspace admin\n- Repository/branch does not exist\n- No DevOps access\n- Git already connected to this workspace"
+
+
+def assign_role(
+    workspace_identifier: str,
+    role_name: str,
+    principal_id: str,
+    principal_type: str
+) -> str:
+    """Assigns a role to a user, group, service principal, or managed identity in a Fabric workspace."""
+    # Validate required parameters
+    missing = []
+    if not workspace_identifier:
+        missing.append("workspace_identifier (workspace name or workspace ID)")
+    if not role_name:
+        missing.append("role_name (Admin, Contributor, Member, Viewer)")
+    if not principal_id:
+        missing.append("principal_id (Object ID / Principal ID of the user, group, SPN, or managed identity)")
+    if not principal_type:
+        missing.append("principal_type (User, Group, ServicePrincipal, ServicePrincipalProfile)")
+    
+    if missing:
+        return "Missing required parameters:\n" + "\n".join([f"  - {m}" for m in missing])
+    
+    # Validate role name
+    valid_roles = ["Admin", "Contributor", "Member", "Viewer"]
+    if role_name not in valid_roles:
+        return f"Invalid role_name: '{role_name}'. Must be one of: {', '.join(valid_roles)}"
+    
+    # Validate principal type
+    valid_principal_types = ["User", "Group", "ServicePrincipal", "ServicePrincipalProfile"]
+    if principal_type not in valid_principal_types:
+        return f"Invalid principal_type: '{principal_type}'. Must be one of: {', '.join(valid_principal_types)}"
+    
+    script_path = get_script_path("assign-fabric-role.ps1")
+    if not os.path.exists(script_path):
+        return "Error: assign-fabric-role.ps1 not found"
+    
+    params = {
+        "WorkspaceIdentifier": workspace_identifier,
+        "RoleName": role_name,
+        "PrincipalId": principal_id,
+        "PrincipalType": principal_type
+    }
+    
+    try:
+        return run_powershell_script(script_path, params)
+    except Exception as e:
+        return f"Fabric role assignment failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\nParameters: {params}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- No Admin access to the workspace\n- Invalid workspace ID or name\n- Invalid principal ID (Object ID)\n- Role assignment already exists"

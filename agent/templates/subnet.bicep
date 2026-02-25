@@ -1,18 +1,18 @@
 targetScope = 'resourceGroup'
 
-@description('Name of the subnet.')
+@description('Name of the subnet. User must provide this value.')
 param subnetName string
 
 @description('Name of the existing Virtual Network.')
 param vnetName string
 
-@description('Starting IP address for the subnet (e.g., 10.0.0.32 for second /27 block).')
+@description('Starting IP address for the subnet (e.g., 10.0.0.32). User must provide this value.')
 param subnetStartingAddress string
 
-@description('Subnet prefix length (CIDR notation, /27 = 32 addresses, 27 usable).')
+@description('Subnet prefix length in CIDR notation (24-29). User must provide this value.')
 @minValue(24)
 @maxValue(29)
-param subnetSize int = 27
+param subnetSize int
 
 @description('Resource ID of the existing Network Security Group to associate with the subnet.')
 param networkSecurityGroupId string
