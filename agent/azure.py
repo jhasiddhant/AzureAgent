@@ -31,6 +31,44 @@ except ImportError:
 # Azure Permissions & Subscriptions
 # ============================================================================
 
+def list_roles(role_type: str = None, user_principal_name: str = None, force_refresh: bool = True) -> str:
+    """
+    Unified function to list Azure roles for the current user.
+    
+    Args:
+        role_type: Type of roles to list:
+            - "active": Currently active/assigned RBAC roles
+            - "eligible": Eligible PIM roles that can be activated
+            - None: Returns error asking to specify role type
+        user_principal_name: Optional user email (only used for active roles)
+        force_refresh: Whether to force refresh (only used for active roles)
+    
+    Returns:
+        List of roles based on role_type
+    """
+    if not role_type:
+        return """ERROR: role_type not specified.
+
+Please specify which roles you want to see:
+- "active": Show currently active/assigned RBAC roles (permanent assignments + activated PIM roles)
+- "eligible": Show eligible PIM roles that can be activated (not yet active)
+
+Ask the user: 'Would you like to see your active (currently assigned) roles or eligible (PIM roles available for activation)?'"""
+    
+    role_type = role_type.lower().strip()
+    
+    if role_type == "active":
+        return list_permissions(user_principal_name, force_refresh)
+    elif role_type == "eligible":
+        return list_pim_roles()
+    else:
+        return f"""ERROR: Invalid role_type '{role_type}'.
+
+Valid options:
+- "active": Show currently active/assigned RBAC roles
+- "eligible": Show eligible PIM roles that can be activated"""
+
+
 def list_permissions(user_principal_name: str = None, force_refresh: bool = True) -> str:
     """Lists active Azure RBAC role assignments for resources and subscriptions."""
     script_name = OP_SCRIPTS["permissions"]
@@ -364,7 +402,7 @@ def attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: str = 
         return "Error: Resource ID is required"
     
     output = []
-    output.append("🔒 Starting NSP Attachment Workflow")
+    output.append("Starting NSP Attachment Workflow")
     output.append("=" * 70)
     output.append("")
     
@@ -387,13 +425,13 @@ def attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: str = 
         create_result = create_resource("nsp", resource_group, json.dumps(create_params))
         
         if any(err in create_result.lower() for err in ERROR_KEYWORDS):
-            return "\n".join(output) + f"\n\n✗ Failed to create NSP:\n{create_result}"
+            return "\n".join(output) + f"\n\nFailed to create NSP:\n{create_result}"
         
         output.append(f"   → NSP '{nsp_name}' created successfully")
     else:
         resources = check_data.get("resources", [])
         if not resources:
-            return "\n".join(output) + "\n\n✗ Error: NSP check returned invalid data"
+            return "\n".join(output) + "\n\nError: NSP check returned invalid data"
         
         if nsp_name:
             matching = [r for r in resources if r.get("name") == nsp_name]
@@ -415,7 +453,7 @@ def attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: str = 
     attach_nsp_script = get_script_path("attach-nsp.ps1")
     
     if not os.path.exists(attach_nsp_script):
-        return "\n".join(output) + "\n\n✗ Error: attach-nsp.ps1 script not found"
+        return "\n".join(output) + "\n\nError: attach-nsp.ps1 script not found"
     
     result = run_command([
         ps_executable, "-ExecutionPolicy", "Bypass", "-File", attach_nsp_script,
@@ -425,7 +463,7 @@ def attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: str = 
     ])
     
     if any(err in result for err in ERROR_KEYWORDS):
-        output.append(f"   ✗ Failed to attach resource to NSP")
+        output.append(f"   Failed to attach resource to NSP")
         output.append("")
         output.append("=" * 70)
         output.append("Error Details:")
@@ -435,7 +473,7 @@ def attach_to_nsp(resource_group: str, nsp_name: str = None, resource_id: str = 
     output.append(f"   → Resource attached to NSP '{nsp_name}'")
     output.append("")
     output.append("=" * 70)
-    output.append("✓ WORKFLOW COMPLETED")
+    output.append("Workflow completed")
     output.append("")
     output.append("Network security compliance resolved.")
     output.append("")
@@ -483,7 +521,7 @@ def attach_diagnostic_settings(resource_group: str, workspace_id: str = None, re
         create_result = create_resource("log-analytics", resource_group, create_params)
         
         if any(err in create_result.lower() for err in ERROR_KEYWORDS):
-            return "\n".join(output) + f"\n\n✗ Failed to create Log Analytics Workspace:\n{create_result}"
+            return "\n".join(output) + f"\n\nFailed to create Log Analytics Workspace:\n{create_result}"
         
         output.append(f"   → Log Analytics Workspace '{workspace_name}' created successfully")
         
@@ -494,11 +532,11 @@ def attach_diagnostic_settings(resource_group: str, workspace_id: str = None, re
             if resources_new:
                 workspace_id = resources_new[0].get("id")
         except:
-            return "\n".join(output) + "\n\n✗ Error: Could not retrieve workspace ID after creation"
+            return "\n".join(output) + "\n\nError: Could not retrieve workspace ID after creation"
     else:
         resources = check_data.get("resources", [])
         if not resources:
-            return "\n".join(output) + "\n\n✗ Error: Log Analytics check returned invalid data"
+            return "\n".join(output) + "\n\nError: Log Analytics check returned invalid data"
         
         if not workspace_id:
             workspace_id = resources[0].get("id")
@@ -517,7 +555,7 @@ def attach_diagnostic_settings(resource_group: str, workspace_id: str = None, re
     attach_law_script = get_script_path("attach-log-analytics.ps1")
     
     if not os.path.exists(attach_law_script):
-        return "\n".join(output) + "\n\n✗ Error: attach-log-analytics.ps1 script not found"
+        return "\n".join(output) + "\n\nError: attach-log-analytics.ps1 script not found"
     
     result = run_command([
         ps_executable, "-ExecutionPolicy", "Bypass", "-File", attach_law_script,
@@ -527,7 +565,7 @@ def attach_diagnostic_settings(resource_group: str, workspace_id: str = None, re
     ])
     
     if any(err in result for err in ERROR_KEYWORDS):
-        output.append(f"   ✗ Failed to configure diagnostic settings")
+        output.append(f"   Failed to configure diagnostic settings")
         output.append("")
         output.append("=" * 70)
         output.append("Error Details:")
@@ -537,7 +575,7 @@ def attach_diagnostic_settings(resource_group: str, workspace_id: str = None, re
     output.append(f"   → Diagnostic settings configured successfully")
     output.append("")
     output.append("=" * 70)
-    output.append("✓ WORKFLOW COMPLETED")
+    output.append("Workflow completed")
     output.append("")
     output.append("Monitoring compliance resolved.")
     output.append("")
@@ -607,10 +645,10 @@ def create_resource(resource_type: str, resource_group: str = None, parameters: 
     template_params = parse_bicep_parameters(template_path)
     
     auto_calculated = []
-    if resource_type == "subnet":
-        auto_calculated.append("subnetStartingAddress")
-    elif resource_type == "fabric-capacity":
+    # Fabric capacity location is auto-detected from tenant region
+    if resource_type == "fabric-capacity":
         auto_calculated.append("location")
+    # NOTE: Subnet parameters must be user-provided - no auto-calculation
     
     required_params = [p for p, (req, _) in template_params.items() if req and p not in auto_calculated]
     optional_params = [p for p, (req, _) in template_params.items() if not req and p not in auto_calculated]
@@ -627,7 +665,8 @@ def create_resource(resource_type: str, resource_group: str = None, parameters: 
         if resource_type == "fabric-capacity":
             response.append(f"\nNote: 'location' will be auto-detected from your Fabric tenant region.")
         elif resource_type == "subnet":
-            response.append(f"\nNote: 'subnetStartingAddress' will be auto-calculated based on existing subnets.")
+            response.append(f"\nIMPORTANT: You must provide 'subnetStartingAddress' (IP address) and 'subnetSize' (CIDR prefix, e.g., 27 for /27).")
+            response.append(f"           No auto-recommendation - please specify your IP address pool and size.")
         
         display_optional = [p for p in optional_params if p not in auto_calculated]
         if resource_type == "fabric-capacity":
@@ -659,3 +698,200 @@ def deploy_bicep_resource(resource_group: str, resource_type: str, parameters: d
         return f"STOP: {msg}\n\nPlease call get_bicep_requirements('{resource_type}') to see all required parameters.\nRequired: {', '.join(req_params) if req_params else 'unknown'}"
     
     return deploy_bicep(resource_group, resource_type, parameters)
+
+
+def assign_rbac_role(
+    scope: str,
+    object_ids: list,
+    role_names: list,
+    principal_type: str
+) -> str:
+    """
+    Assigns Azure RBAC roles to Service Principals (SPN) or Managed Identities (MSI/WSI) only.
+    
+    POLICY: Direct RBAC role assignments to Users or Groups are NOT allowed.
+    Use Managed Identities or Service Principals for programmatic access.
+    
+    Supports all scenarios:
+    - Single role to single identity
+    - Multiple roles to single identity
+    - Single role to multiple identities
+    - Multiple roles to multiple identities
+    """
+    # Validate required parameters
+    missing = []
+    if not scope:
+        missing.append("scope (e.g., /subscriptions/<sub-id>/resourceGroups/<rg-name>)")
+    if not object_ids:
+        missing.append("object_ids (list of Object IDs / Principal IDs)")
+    if not role_names:
+        missing.append("role_names (list of role names, e.g., 'Storage Blob Data Contributor')")
+    if not principal_type:
+        missing.append("principal_type (ServicePrincipal or ManagedIdentity)")
+    
+    if missing:
+        return "Missing required parameters:\n" + "\n".join([f"  - {m}" for m in missing])
+    
+    # Validate principal type - ONLY allow ServicePrincipal or ManagedIdentity
+    valid_principal_types = ["ServicePrincipal", "ManagedIdentity"]
+    principal_type_normalized = principal_type.strip()
+    
+    # Check for blocked principal types (User or Group)
+    blocked_types = ["User", "Group"]
+    if principal_type_normalized in blocked_types:
+        return f"""RBAC Role Assignment Blocked
+
+Direct RBAC role assignments to {principal_type_normalized}s are not recommended.
+
+Security Best Practice:
+   Azure RBAC roles should NOT be assigned directly to Users or Groups.
+   Instead, use Privileged Identity Management (PIM) for user access,
+   or Managed Identities/Service Principals for application access.
+
+Recommended Alternatives:
+
+   For User Access - Use Azure PIM (Privileged Identity Management):
+      - PIM provides just-in-time (JIT) privileged access
+      - Users activate roles only when needed, with time-limited access
+      - Requires approval workflows and audit trails
+      - Reduces standing access and attack surface
+      - Configure PIM at: Azure Portal > Entra ID > Privileged Identity Management
+   
+   For Application/Service Access - Use Managed Identity:
+      - Attach a Managed Identity to your compute resource (VM, App Service, Function, etc.)
+      - Assign the RBAC role to the Managed Identity's Principal ID
+      - No credentials to manage or rotate
+   
+   For External Apps/Automation - Use Service Principal:
+      - Create an App Registration in Entra ID
+      - Assign the RBAC role to the Service Principal's Object ID
+
+Why Direct User/Group RBAC is Not Recommended:
+   - Creates permanent standing access (security risk)
+   - No activation workflow or time limits
+   - Harder to audit and review
+   - Violates principle of least privilege
+
+To Proceed:
+   - For user access: Configure PIM roles in Azure Portal instead
+   - For application access: Provide a Managed Identity Principal ID or Service Principal Object ID,
+     and set principal_type to 'ServicePrincipal' or 'ManagedIdentity'"""
+    
+    # Validate it's one of the allowed types
+    if principal_type_normalized not in valid_principal_types:
+        return f"Invalid principal_type: '{principal_type}'\n\nAllowed values: {', '.join(valid_principal_types)}\n\nNote: User and Group assignments are blocked by policy. Use Managed Identity or Service Principal instead."
+    
+    # Ensure lists
+    if isinstance(object_ids, str):
+        object_ids = [object_ids]
+    if isinstance(role_names, str):
+        role_names = [role_names]
+    
+    # Validate scope format
+    if not scope.startswith("/subscriptions/"):
+        return f"Invalid scope format. Scope must start with '/subscriptions/<subscription-id>/...'\n\nExamples:\n  - Subscription: /subscriptions/<sub-id>\n  - Resource Group: /subscriptions/<sub-id>/resourceGroups/<rg-name>\n  - Resource: /subscriptions/<sub-id>/resourceGroups/<rg-name>/providers/<provider>/<resource-type>/<resource-name>"
+    
+    script_path = get_script_path("assign-azure-rbac.ps1")
+    if not os.path.exists(script_path):
+        return "Error: assign-azure-rbac.ps1 not found"
+    
+    # Convert lists to PowerShell array format
+    object_ids_str = ",".join(object_ids)
+    role_names_str = ",".join(role_names)
+    
+    params = {
+        "Scope": scope,
+        "ObjectIds": object_ids_str,
+        "RoleNames": role_names_str
+    }
+    
+    try:
+        return run_powershell_script(script_path, params)
+    except Exception as e:
+        return f"Azure RBAC role assignment failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\nParameters: {params}\n\nCommon causes:\n- Not authenticated: Run 'az login' or 'Connect-AzAccount'\n- You don't have Owner or User Access Administrator role on the scope\n- Invalid Object ID (use Object ID, not Application ID for SPNs)\n- Role name is incorrect or doesn't exist\n- Invalid scope format"
+
+
+# ============================================================================
+# Azure PIM (Privileged Identity Management)
+# ============================================================================
+
+def list_pim_roles() -> str:
+    """
+    Lists eligible PIM (Privileged Identity Management) roles for the current user.
+    
+    Returns all eligible roles across ALL scopes (subscriptions, resource groups, resources)
+    with role name, scope, and maximum allowed activation hours.
+    """
+    script_path = get_script_path("list-pim-roles.ps1")
+    if not os.path.exists(script_path):
+        return "Error: list-pim-roles.ps1 not found"
+    
+    try:
+        return run_powershell_script(script_path, {})
+    except Exception as e:
+        return f"Failed to list PIM roles\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nCommon causes:\n- Not authenticated: Run 'Connect-AzAccount'\n- No eligible PIM roles assigned to your account"
+
+
+def activate_pim_roles(
+    justification: str,
+    activate_all: bool = False,
+    scopes: list = None,
+    role_names: list = None,
+    duration_hours: int = 0
+) -> str:
+    """
+    Activates eligible PIM roles for the current user.
+    
+    Two modes:
+    1. activate_all=True: Activates ALL eligible roles across ALL scopes
+    2. activate_all=False: Activates roles at specified scopes (optionally filtered by role_names)
+    
+    Args:
+        justification: Business justification for the activation
+        activate_all: If True, activates ALL eligible roles across all scopes
+        scopes: List of Azure scopes (required when activate_all=False)
+        role_names: Optional list of specific role names to activate
+        duration_hours: Duration in hours. If 0 or not specified, uses max allowed per role.
+    """
+    # Validate required parameters
+    missing = []
+    if not justification:
+        missing.append("justification (business justification for activation)")
+    if not activate_all and not scopes:
+        missing.append("scopes (list of Azure scope paths) OR set activate_all=True")
+    
+    if missing:
+        return "Missing required parameters:\n" + "\n".join([f"  - {m}" for m in missing])
+    
+    script_path = get_script_path("activate-pim.ps1")
+    if not os.path.exists(script_path):
+        return "Error: activate-pim.ps1 not found"
+    
+    # Build parameters
+    params = {
+        "Justification": justification
+    }
+    
+    # Only pass DurationHours if specified (> 0)
+    if duration_hours and duration_hours > 0:
+        params["DurationHours"] = str(duration_hours)
+    
+    if activate_all:
+        params["ActivateAll"] = "$true"
+    else:
+        # Ensure scopes is a list
+        if isinstance(scopes, str):
+            scopes = [scopes]
+        params["Scopes"] = ",".join(scopes)
+    
+    # Ensure role_names is a list or empty
+    if role_names:
+        if isinstance(role_names, str):
+            role_names = [role_names]
+        params["RoleNames"] = ",".join(role_names)
+    
+    try:
+        return run_powershell_script(script_path, params)
+    except Exception as e:
+        return f"Failed to activate PIM roles\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nCommon causes:\n- Not authenticated: Run 'Connect-AzAccount'\n- No eligible PIM roles at the specified scopes\n- Duration exceeds maximum allowed by policy\n- Role requires approval (check PIM portal)\n- Az.Resources module not installed"
+

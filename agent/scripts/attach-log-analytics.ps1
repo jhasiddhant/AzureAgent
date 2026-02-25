@@ -74,7 +74,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Output "`n✓ Diagnostic setting '$diagName' successfully configured."
+Write-Output "`nDiagnostic setting '$diagName' successfully configured."
 Write-Output "`nEnabled log categories:"
 $logsArray | ForEach-Object { Write-Output "  - $($_.category)" }
 Write-Output "`nEnabled metric categories:"

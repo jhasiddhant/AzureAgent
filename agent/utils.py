@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import json
+import platform
 from typing import Dict, Tuple, Optional, Any
 
 # ============================================================================
@@ -19,7 +20,7 @@ ERROR_KEYWORDS = ["Error", "error", "FAILED", "Failed", "failed"]
 # Azure-specific error patterns with user-friendly messages and solutions
 AZURE_ERROR_PATTERNS = {
     "AuthorizationFailed": {
-        "message": "⚠️ AUTHORIZATION ERROR",
+        "message": "Authorization Error",
         "cause": "You don't have sufficient permissions to perform this action.",
         "solutions": [
             "Run 'az login' to refresh your credentials",
@@ -29,7 +30,7 @@ AZURE_ERROR_PATTERNS = {
         ]
     },
     "ResourceNotFound": {
-        "message": "⚠️ RESOURCE NOT FOUND",
+        "message": "Resource Not Found",
         "cause": "The specified resource does not exist.",
         "solutions": [
             "Verify the resource name and resource group are correct",
@@ -38,7 +39,7 @@ AZURE_ERROR_PATTERNS = {
         ]
     },
     "SubscriptionNotFound": {
-        "message": "⚠️ SUBSCRIPTION NOT FOUND",
+        "message": "Subscription Not Found",
         "cause": "The specified subscription is not accessible.",
         "solutions": [
             "Run 'az account list' to see available subscriptions",
@@ -47,7 +48,7 @@ AZURE_ERROR_PATTERNS = {
         ]
     },
     "InvalidResourceType": {
-        "message": "⚠️ INVALID RESOURCE TYPE",
+        "message": "Invalid Resource Type",
         "cause": "The resource type specified is not valid.",
         "solutions": [
             "Check the resource type spelling",
@@ -55,7 +56,7 @@ AZURE_ERROR_PATTERNS = {
         ]
     },
     "QuotaExceeded": {
-        "message": "⚠️ QUOTA EXCEEDED",
+        "message": "Quota Exceeded",
         "cause": "You've reached the limit for this resource type in the region.",
         "solutions": [
             "Try a different Azure region",
@@ -64,7 +65,7 @@ AZURE_ERROR_PATTERNS = {
         ]
     },
     "Conflict": {
-        "message": "⚠️ RESOURCE CONFLICT",
+        "message": "Resource Conflict",
         "cause": "A resource with this name already exists or is in a conflicting state.",
         "solutions": [
             "Use a different resource name",
@@ -73,7 +74,7 @@ AZURE_ERROR_PATTERNS = {
         ]
     },
     "InvalidParameter": {
-        "message": "⚠️ INVALID PARAMETER",
+        "message": "Invalid Parameter",
         "cause": "One or more parameters are invalid.",
         "solutions": [
             "Review the parameter values for typos",
@@ -81,7 +82,7 @@ AZURE_ERROR_PATTERNS = {
         ]
     },
     "PrivateEndpointCannotBeCreatedInSubnet": {
-        "message": "⚠️ PRIVATE ENDPOINT SUBNET ERROR",
+        "message": "Private Endpoint Subnet Error",
         "cause": "The subnet cannot host private endpoints.",
         "solutions": [
             "Ensure 'privateEndpointNetworkPolicies' is set to 'Disabled' on the subnet",
@@ -121,6 +122,10 @@ LOG_ANALYTICS_MANDATORY_RESOURCES = [
     "ai-foundry",
     "ai-services",
     "ai-search",
+    "document-intelligence",
+    "ai-docintelligence",
+    "ai-contentsafety",
+    "ai-languageservices",
     "front-door",
     "virtual-machine",
     "vm",
@@ -136,7 +141,9 @@ TEMPLATE_MAP = {
     "key-vault": "templates/azure-key-vaults.bicep",
     "openai": "templates/azure-openai.bicep",
     "ai-search": "templates/ai-search.bicep",
-    "ai-foundry": "templates/ai-foundry.bicep",
+    "ai-contentsafety": "templates/contentsafety.bicep",
+    "ai-docintelligence": "templates/documentintelligence.bicep",
+    "ai-languageservice": "templates/languageservice.bicep",
     "cosmos-db": "templates/cosmos-db.bicep",
     "log-analytics": "templates/log-analytics.bicep",
     "uami": "templates/user-assigned-managed-identity.bicep",
@@ -181,6 +188,10 @@ RESOURCE_TYPE_PROVIDER_MAP = {
     "ai-services": "Microsoft.CognitiveServices/accounts",
     "ai-hub": "Microsoft.MachineLearningServices/workspaces",
     "ai-project": "Microsoft.MachineLearningServices/workspaces",
+    "document-intelligence": "Microsoft.CognitiveServices/accounts",
+    "ai-docintelligence": "Microsoft.CognitiveServices/accounts",
+    "ai-languageservice": "Microsoft.CognitiveServices/accounts",
+    "ai-contentsafety": "Microsoft.CognitiveServices/accounts",
     "cosmos-db": "Microsoft.DocumentDB/databaseAccounts",
     "cosmosdb": "Microsoft.DocumentDB/databaseAccounts",
     "fabric-capacity": "Microsoft.Fabric/capacities",
@@ -233,7 +244,7 @@ OP_SCRIPTS = {
     "resources": "list-resources.ps1",
     "create-rg": "create-resourcegroup.ps1",
     "deploy-bicep": "deploy-bicep.ps1",
-    "post-deploy-function-app": "post-deploy-function-app.ps1"
+    "create-funcapp-containers": "create-funcapp-containers.ps1"
 }
 
 # ============================================================================
@@ -264,12 +275,17 @@ def _detect_azure_error(output: str) -> Optional[str]:
 def run_command(command: list[str]) -> str:
     """Generic command runner with enhanced error reporting."""
     try:
+        # On Windows, az CLI needs cmd /c wrapper when shell=False
+        if platform.system() == "Windows" and command and command[0] == "az":
+            command = ["cmd", "/c"] + command
+        
         result = subprocess.run(
             command,
-            shell=False, 
+            shell=False,
             capture_output=True,
             text=True,
             encoding='utf-8',
+            errors='replace',
             check=False,
             stdin=subprocess.DEVNULL,
             timeout=600
@@ -285,7 +301,7 @@ def run_command(command: list[str]) -> str:
         if result.stderr and result.stderr.strip():
             stderr_lines = result.stderr.strip()
             if result.returncode != 0 or any(err_word in stderr_lines.lower() for err_word in ['error', 'failed', 'exception', 'cannot', 'unauthorized', 'forbidden', 'not found']):
-                output_parts.append(f"\n═══════════════════════════════════════════════════════════\n✗ ERROR DETAILS:\n═══════════════════════════════════════════════════════════\n{stderr_lines}")
+                output_parts.append(f"\n═══════════════════════════════════════════════════════════\nError Details:\n═══════════════════════════════════════════════════════════\n{stderr_lines}")
             else:
                 output_parts.append(stderr_lines)
         
@@ -298,9 +314,9 @@ def run_command(command: list[str]) -> str:
         return "\n".join(output_parts) if output_parts else "Command completed with no output"
         
     except subprocess.TimeoutExpired:
-        return f"✗ ERROR: Command timed out after 600 seconds\n\nCommand: {' '.join(command)}\n\nThis usually indicates a hanging process or very slow operation."
+        return f"Command timed out after 600 seconds\n\nCommand: {' '.join(command)}\n\nThis usually indicates a hanging process or very slow operation."
     except Exception as e:
-        return f"✗ EXECUTION ERROR:\n\nCommand: {' '.join(command)}\n\nError: {str(e)}\nError Type: {type(e).__name__}"
+        return f"Execution error\n\nCommand: {' '.join(command)}\n\nError: {str(e)}\nError Type: {type(e).__name__}"
 
 
 def run_powershell_script(script_path: str, parameters: dict) -> str:
@@ -312,12 +328,7 @@ def run_powershell_script(script_path: str, parameters: dict) -> str:
             cmd.append(f"-{k}")
             cmd.append(str(v))
     
-    result = run_command(cmd)
-    
-    if any(pattern in result for pattern in ['Write-Error', 'TerminatingError', 'Exception', 'At line:']):
-        return result
-    
-    return result
+    return run_command(cmd)
 
 
 # ============================================================================
@@ -545,11 +556,11 @@ def get_resource_id(resource_group: str, resource_type: str, parameters: Dict[st
 def format_deployment_details(resource_type: str, resource_group: str, parameters: Dict[str, str]) -> str:
     """Format deployment details in a user-friendly way based on resource type."""
     details = []
-    details.append("═" * 70)
-    details.append("✅ DEPLOYMENT SUCCESSFUL")
-    details.append("═" * 70)
+    details.append("=" * 70)
+    details.append("Deployment successful")
+    details.append("=" * 70)
     details.append("")
-    details.append("📦 Deployment Details:")
+    details.append("Deployment Details:")
     details.append("")
     
     location = parameters.get("location", "N/A")
@@ -606,19 +617,44 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
     
     elif resource_type == "function-app":
         function_name = parameters.get("functionAppName", "N/A")
-        hosting_plan = parameters.get("hostingPlanType", "N/A")
-        runtime = parameters.get("runtimeStack", "N/A")
-        details.append(f"   Function App: {function_name}")
-        details.append(f"   Location: {location}")
-        details.append(f"   Hosting Plan: {hosting_plan}")
-        details.append(f"   Runtime: {runtime}")
-        details.append(f"   URL: https://{function_name}.azurewebsites.net")
+        runtime = parameters.get("runtimeStack", "python")
+        runtime_version = parameters.get("runtimeVersion", "3.11")
+        storage_name = parameters.get("storageAccountName", "N/A")
+        uami_name = parameters.get("uamiName", "N/A")
+        
+        details.append(f"   Function App:        {function_name}")
+        details.append(f"   App Service Plan:    {function_name}-plan (Flex Consumption FC1)")
+        details.append(f"   Location:            {location}")
+        details.append(f"   Runtime:             {runtime} {runtime_version}")
+        details.append(f"   URL:                 https://{function_name}.azurewebsites.net")
         details.append("")
-        details.append("Storage containers created automatically")
+        details.append("   Identity Configuration:")
+        details.append(f"     - System Assigned MI: Enabled (not used)")
+        details.append(f"     - User Assigned MI:   {uami_name} (used for deployment & runtime)")
         details.append("")
-        details.append("   ⚠️ ADMIN ACTION REQUIRED:")
-        details.append("   An admin with Owner role must assign 'Storage Blob Data Owner'")
-        details.append("   to the Function App's managed identity, then restart the app.")
+        details.append(f"   Storage (ADLS):      {storage_name}")
+        details.append(f"   Public Access:       Enabled")
+        details.append("")
+        details.append("─" * 70)
+        details.append("")
+        details.append("DIAGNOSTIC SETTINGS - ACTION REQUIRED")
+        details.append("")
+        details.append("   Diagnostic settings are NOT configured by default.")
+        details.append("   Configure via Portal or use: azure_attach_diagnostic_settings")
+        details.append("")
+        details.append("─" * 70)
+        details.append("")
+        details.append("ROLE ASSIGNMENTS - REQUEST ADMIN")
+        details.append("")
+        details.append("   An admin must assign these roles on the ADLS storage account:")
+        details.append("")
+        uami_principal_id = parameters.get("_uamiPrincipalId", "")
+        details.append(f"   User Assigned MI → Storage Blob Data Owner")
+        details.append("                    → Storage Account Contributor")
+        if uami_principal_id:
+            details.append(f"      Principal ID: {uami_principal_id}")
+        details.append("")
+        details.append(f"   After role assignment: az functionapp restart -n {function_name} -g <resource_group>")
     
     elif resource_type in ["azure-synapse-analytics", "synapse"]:
         synapse_name = parameters.get("synapseName", "N/A")
@@ -634,7 +670,7 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
         details.append(f"   Container Created: {'Yes' if create_container else 'No (existing)'}")
         details.append(f"   Synapse Studio: https://web.azuresynapse.net?workspace=%2Fsubscriptions%2F...%2F{synapse_name}")
         details.append("")
-        details.append("   ⚠️ ADMIN ACTION REQUIRED:")
+        details.append("   Admin action required:")
         details.append("   An admin with Owner/User Access Administrator role must assign")
         details.append(f"   'Storage Blob Data Contributor' role to the Synapse workspace")
         details.append(f"   managed identity on storage account '{storage_name}'.")
@@ -688,10 +724,10 @@ def validate_bicep_parameters(resource_type: str, provided: Dict[str, str]) -> T
     params = parse_bicep_parameters(template_path)
     
     auto_calculated = []
-    if resource_type == "subnet":
-        auto_calculated.append("subnetStartingAddress")
-    elif resource_type == "fabric-capacity":
+    # Fabric capacity location is auto-detected from tenant region
+    if resource_type == "fabric-capacity":
         auto_calculated.append("location")
+    # NOTE: Subnet parameters (subnetStartingAddress, subnetSize) must be user-provided - no auto-calculation
     
     missing = [p for p, (req, _) in params.items() if req and p not in auto_calculated and (p not in provided or provided[p] in (None, ""))]
     if missing:
@@ -723,18 +759,8 @@ def deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str, 
             parameters["location"] = "westcentralus"
             print("[WARN] Could not detect Fabric tenant region. Using default: westcentralus")
     
-    # Special handling for Subnet
-    if resource_type == "subnet":
-        vnet_name = parameters.get("vnetName", "")
-        if vnet_name and "subnetStartingAddress" not in parameters:
-            subnet_size = int(parameters.get("subnetSize", 27))
-            next_address = calculate_next_subnet_address(resource_group, vnet_name, subnet_size)
-            
-            if next_address:
-                parameters["subnetStartingAddress"] = next_address
-                print(f"[INFO] Auto-calculated subnet starting address: {next_address}")
-            else:
-                return f"Error: Could not calculate next available subnet address in VNet '{vnet_name}'. The VNet may be full or not accessible."
+    # NOTE: Subnet parameters (subnetStartingAddress, subnetSize) must be provided by the user
+    # No auto-calculation - user must specify IP address pool and size
     
     # Build parameters string for PowerShell
     param_string = ";".join([f"{k}={v}" for k, v in parameters.items()]) if parameters else ""
@@ -764,54 +790,49 @@ def deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str, 
     if deployment_successful:
         # Handle post-deployment for Function App
         if resource_type == "function-app":
-            output_lines = ["Running post-deployment tasks for Function App..."]
-            post_script_path = get_script_path(OP_SCRIPTS["post-deploy-function-app"])
+            output_lines = []
+            output_lines.append("")
+            output_lines.append("Running post-deployment tasks for Function App...")
             
-            if os.path.exists(post_script_path):
-                post_params = {
-                    "ResourceGroup": resource_group,
-                    "FunctionAppName": parameters.get("functionAppName", ""),
-                    "StorageAccountName": parameters.get("storageAccountName", ""),
-                    "PrincipalId": ""
-                }
-                
+            function_app_name = parameters.get("functionAppName", "")
+            storage_account_name = parameters.get("storageAccountName", "")
+            uami_name = parameters.get("uamiName", "")
+            
+            # Get UAMI Principal ID via CLI
+            uami_principal_id = ""
+            if uami_name:
                 try:
-                    deploy_json = json.loads(deploy_result) if deploy_result.strip().startswith("{") else {}
-                    principal_id = deploy_json.get("properties", {}).get("outputs", {}).get("systemAssignedIdentityPrincipalId", {}).get("value", "")
-                    if principal_id:
-                        post_params["PrincipalId"] = principal_id
-                        post_result = run_powershell_script(post_script_path, post_params)
-                        output_lines.append(post_result)
-                except Exception as e:
-                    output_lines.append(f"Warning: Could not run post-deployment tasks: {str(e)}")
+                    uami_cmd = [
+                        "az", "identity", "show",
+                        "-n", uami_name,
+                        "-g", resource_group,
+                        "--query", "principalId",
+                        "-o", "tsv"
+                    ]
+                    uami_principal_id = run_command(uami_cmd).strip()
+                    if "ERROR" in uami_principal_id or "error" in uami_principal_id.lower():
+                        uami_principal_id = ""
+                except Exception:
+                    pass
+            
+            # Create ADLS containers via PowerShell script
+            if storage_account_name:
+                container_script = OP_SCRIPTS.get("create-funcapp-containers")
+                if container_script:
+                    container_script_path = os.path.join(os.path.dirname(__file__), "scripts", container_script)
+                    container_cmd = [
+                        "powershell.exe", "-ExecutionPolicy", "Bypass", "-File",
+                        container_script_path,
+                        "-StorageAccountName", storage_account_name,
+                        "-ResourceGroup", resource_group
+                    ]
+                    container_result = run_command(container_cmd)
+                    output_lines.append(container_result)
+            
+            # Store principal IDs for format_deployment_details
+            parameters["_uamiPrincipalId"] = uami_principal_id
             
             output = output_lines + [format_deployment_details(resource_type, resource_group, parameters)]
-        
-        elif resource_type == "logic-app" and parameters.get("logicAppType") == "standard":
-            logic_app_name = parameters.get("logicAppName", "")
-            storage_name = parameters.get("storageAccountName", "")
-            
-            output = [format_deployment_details(resource_type, resource_group, parameters)]
-            output.append("")
-            output.append("═" * 70)
-            output.append("🔐 REQUIRED RBAC ROLE ASSIGNMENTS")
-            output.append("═" * 70)
-            output.append("")
-            output.append("The Logic App System Assigned Managed Identity needs these roles")
-            output.append(f"on Storage Account '{storage_name}':")
-            output.append("")
-            output.append("┌─────────────────────────────────────┬──────────────────────────────────────┐")
-            output.append("│ Role Name                           │ Role Definition ID                   │")
-            output.append("├─────────────────────────────────────┼──────────────────────────────────────┤")
-            output.append("│ Storage Blob Data Owner             │ b7e6dc6d-f1e8-4753-8033-0f276bb0955b │")
-            output.append("│ Storage Account Contributor         │ 17d1049b-9a84-46fb-8f53-869881c3d3ab │")
-            output.append("│ Storage Queue Data Contributor      │ 974c5e8b-45b9-4653-ba55-5f855dd0fb88 │")
-            output.append("│ Storage Table Data Contributor      │ 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3 │")
-            output.append("│ Storage File Data SMB Share Contrib │ 0c867c2a-1d8c-454a-a3db-ab2ea1bdc8bb │")
-            output.append("└─────────────────────────────────────┴──────────────────────────────────────┘")
-            output.append("")
-            output.append("Ask your admin to provide these roles to the Logic App's managed identity for proper functioning.")
-            output.append("═" * 70)
         
         else:
             output = [format_deployment_details(resource_type, resource_group, parameters)]
@@ -822,29 +843,29 @@ def deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str, 
         if resource_type in NSP_MANDATORY_RESOURCES:
             output.append("\n" + "─" * 70)
             output.append("")
-            output.append("⚠️  COMPLIANCE REQUIREMENT")
+            output.append("Compliance Requirement")
             output.append("═" * 70)
             output.append("")
             output.append("This resource requires NSP attachment for:")
-            output.append("   📋 Secure PaaS Resources - Network Isolation")
+            output.append("   - Secure PaaS Resources - Network Isolation")
             output.append("")
             output.append("═" * 70)
             output.append("")
-            output.append("🔒 Do you want to attach this resource to NSP?")
+            output.append("Do you want to attach this resource to NSP?")
             output.append("")
             output.append("   Type 'yes' or 'attach to NSP' to proceed")
             output.append("   Type 'no' to skip (not recommended - resource will not be compliant)")
             output.append("")
             output.append("Automated workflow will:")
-            output.append("   1. ✓ Check if NSP exists in the resource group")
-            output.append("   2. ✓ Create NSP if it doesn't exist (skip if exists)")
-            output.append("   3. ✓ Attach the resource to the NSP")
+            output.append("   1. Check if NSP exists in the resource group")
+            output.append("   2. Create NSP if it doesn't exist (skip if exists)")
+            output.append("   3. Attach the resource to the NSP")
             output.append("")
         
         # Log Analytics compliance prompt
         if resource_type in LOG_ANALYTICS_MANDATORY_RESOURCES:
             output.append("\n" + "═" * 70)
-            output.append("⚠️  COMPLIANCE REQUIREMENT")
+            output.append("Compliance Requirement")
             output.append("═" * 70)
             output.append("")
             output.append("This resource requires Log Analytics diagnostic settings for:")
@@ -858,9 +879,9 @@ def deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str, 
             output.append("   Type 'no' to skip (not recommended - resource will not have monitoring)")
             output.append("")
             output.append("Automated workflow will:")
-            output.append("   1. ✓ Check if Log Analytics Workspace exists in the resource group")
-            output.append("   2. ✓ Create workspace if it doesn't exist (skip if exists)")
-            output.append("   3. ✓ Configure diagnostic settings for the resource")
+            output.append("   1. Check if Log Analytics Workspace exists in the resource group")
+            output.append("   2. Create workspace if it doesn't exist (skip if exists)")
+            output.append("   3. Configure diagnostic settings for the resource")
             output.append("")
         
         return "\n".join(output)

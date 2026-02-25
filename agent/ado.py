@@ -58,7 +58,7 @@ def create_project(organization: str = None, project_name: str = None, repo_name
         proj_out = run_powershell_script(project_script, proj_params)
         return proj_out.strip()
     except Exception as e:
-        return f"✗ PROJECT CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {project_script}\nParameters: {proj_params}"
+        return f"Project creation failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {project_script}\nParameters: {proj_params}"
 
 
 def create_repo(organization: str = None, project_name: str = None, repo_name: str = None) -> str:
@@ -95,7 +95,7 @@ def create_repo(organization: str = None, project_name: str = None, repo_name: s
         out = run_powershell_script(repo_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ REPOSITORY CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {repo_script}\nParameters: {params}"
+        return f"Repository creation failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {repo_script}\nParameters: {params}"
 
 
 def list_projects(organization: str = None) -> str:
@@ -123,7 +123,7 @@ def list_projects(organization: str = None) -> str:
         out = run_powershell_script(list_projects_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ LIST PROJECTS FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {list_projects_script}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- Missing Azure DevOps extension: Run 'az extension add --name azure-devops'\n- Invalid organization URL\n- No access to organization"
+        return f"List projects failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {list_projects_script}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- Missing Azure DevOps extension: Run 'az extension add --name azure-devops'\n- Invalid organization URL\n- No access to organization"
 
 
 def list_repos(organization: str = None, project_name: str = None) -> str:
@@ -157,7 +157,7 @@ def list_repos(organization: str = None, project_name: str = None) -> str:
         out = run_powershell_script(list_repos_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ LIST REPOSITORIES FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {list_repos_script}\nParameters: {params}\n\nCommon causes:\n- Project does not exist\n- No access to project\n- Authentication issue"
+        return f"List repositories failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {list_repos_script}\nParameters: {params}\n\nCommon causes:\n- Project does not exist\n- No access to project\n- Authentication issue"
 
 
 def create_branch(organization: str = None, project_name: str = None, 
@@ -202,7 +202,7 @@ def create_branch(organization: str = None, project_name: str = None,
         out = run_powershell_script(branch_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ BRANCH CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {branch_script}\nParameters: {params}\n\nCommon causes:\n- Base branch does not exist\n- Branch already exists\n- No write access to repository"
+        return f"Branch creation failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {branch_script}\nParameters: {params}\n\nCommon causes:\n- Base branch does not exist\n- Branch already exists\n- No write access to repository"
 
 
 # ============================================================================
@@ -266,7 +266,7 @@ def deploy_custom_yaml(organization: str, project_name: str, repo_name: str,
         out = run_powershell_script(deploy_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ CUSTOM YAML DEPLOYMENT FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {deploy_script}\nParameters: {params}\n\nCommon causes:\n- Repository not initialized\n- Branch does not exist\n- No write access\n- Git authentication failed\n- Invalid YAML syntax"
+        return f"Custom YAML deployment failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {deploy_script}\nParameters: {params}\n\nCommon causes:\n- Repository not initialized\n- Branch does not exist\n- No write access\n- Git authentication failed\n- Invalid YAML syntax"
 
 
 def deploy_pipeline_yaml(organization: str = None, project_name: str = None, 
@@ -344,7 +344,7 @@ def deploy_pipeline_yaml(organization: str = None, project_name: str = None,
         out = run_powershell_script(deploy_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ YAML DEPLOYMENT FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {deploy_script}\nParameters: {params}\n\nCommon causes:\n- Repository not initialized\n- Branch does not exist\n- No write access\n- Git authentication failed"
+        return f"YAML deployment failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {deploy_script}\nParameters: {params}\n\nCommon causes:\n- Repository not initialized\n- Branch does not exist\n- No write access\n- Git authentication failed"
 
 
 def create_pipeline(organization: str = None, project_name: str = None,
@@ -419,4 +419,71 @@ def create_pipeline(organization: str = None, project_name: str = None,
         out = run_powershell_script(pipeline_script, params)
         return out.strip()
     except Exception as e:
-        return f"✗ PIPELINE CREATION FAILED\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {pipeline_script}\nParameters: {params}\n\nCommon causes:\n- YAML file does not exist in repository\n- No 'Build Administrators' permission\n- Invalid YAML path\n- Branch does not exist"
+        return f"Pipeline creation failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {pipeline_script}\nParameters: {params}\n\nCommon causes:\n- YAML file does not exist in repository\n- No 'Build Administrators' permission\n- Invalid YAML path\n- Branch does not exist"
+
+
+# ============================================================================
+# Azure DevOps - Role Assignment
+# ============================================================================
+
+def assign_role(
+    organization: str,
+    project_name: str,
+    role_name: str,
+    principal_id: str
+) -> str:
+    """Assigns a role (security group membership) to a principal in an Azure DevOps project.
+    
+    Common built-in roles:
+    - Project Administrators: Full control over project settings and security
+    - Build Administrators: Manage build pipelines and definitions
+    - Release Administrators: Manage release pipelines and deployments
+    - Contributors: Create and modify code, work items, and pipelines
+    - Readers: View-only access to project resources
+    - Endpoint Administrators: Manage service connections
+    - Endpoint Creators: Create service connections
+    
+    Custom roles/groups are also supported - provide the exact group name.
+    
+    Args:
+        organization: Azure DevOps organization URL or name (e.g., 'https://dev.azure.com/myorg' or 'myorg')
+        project_name: Name of the Azure DevOps project
+        role_name: Name of the security group/role to assign
+        principal_id: Object ID (GUID) of the user, group, or service principal from Azure AD/Entra ID
+    
+    Returns:
+        Role assignment result with status and details
+    """
+    # Validate required parameters
+    missing = []
+    if not organization:
+        missing.append("organization (Azure DevOps org URL or name)")
+    if not project_name:
+        missing.append("project_name (name of the ADO project)")
+    if not role_name:
+        missing.append("role_name (e.g., 'Project Administrators', 'Contributors', 'Readers')")
+    if not principal_id:
+        missing.append("principal_id (Object ID / GUID of the user, group, or service principal)")
+    
+    if missing:
+        return "Missing required parameters:\n" + "\n".join([f"  - {m}" for m in missing])
+    
+    # Normalize organization URL
+    if organization and not organization.strip().lower().startswith("http"):
+        organization = f"https://dev.azure.com/{organization.strip()}"
+    
+    script_path = get_script_path("assign-ado-role.ps1")
+    if not os.path.exists(script_path):
+        return "Error: assign-ado-role.ps1 not found"
+    
+    params = {
+        "Organization": organization,
+        "ProjectName": project_name,
+        "RoleName": role_name,
+        "PrincipalId": principal_id
+    }
+    
+    try:
+        return run_powershell_script(script_path, params)
+    except Exception as e:
+        return f"ADO role assignment failed\n\nError: {str(e)}\nError Type: {type(e).__name__}\n\nScript: {script_path}\nParameters: {params}\n\nCommon causes:\n- Not authenticated: Run 'az login'\n- No Project Administrator or Collection Administrator access\n- Invalid organization URL or project name\n- Invalid principal ID (Object ID)\n- Role/group does not exist in the project"
