@@ -194,7 +194,7 @@ Before installing the AzForge Agent, ensure you have the following installed:
 
 1. When prompted for the package name, enter:
    ```
-   azforgeagent
+   customazuremcpagent
    ```
 2. Select the **latest version** when prompted
 3. Wait for the installation to complete
@@ -205,11 +205,11 @@ Add the following configuration to the `mcp.json` file:
 ```json
 {
     "servers": {
-        "azforgeagent": {
+        "customazuremcpagent": {
             "type": "stdio",
             "command": "uvx",
             "args": [
-                "azforgeagent==1.0.0"
+                "customazuremcpagent==1.0.0"
             ]
         }
     }
