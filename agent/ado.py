@@ -285,7 +285,7 @@ def deploy_pipeline_yaml(organization: str = None, project_name: str = None,
     if not repo_name or not repo_name.strip():
         missing.append("repo_name (existing repo)")
     if not pipeline_type or not pipeline_type.strip():
-        missing.append("pipeline_type (template key like 'credscan', 'credscan-1es', or name for custom)")
+        missing.append("pipeline_type (template key like 'codeql', 'codeql-1es', or name for custom)")
     if not branch or not branch.strip():
         missing.append("branch (target branch, usually 'main')")
     if missing:
@@ -358,7 +358,7 @@ def create_pipeline(organization: str = None, project_name: str = None,
     if pipeline_name and not pipeline_type:
         pipeline_type = detect_pipeline_type(pipeline_name, "")
     elif not pipeline_type:
-        pipeline_type = "credscan"
+        pipeline_type = "codeql"
 
     missing = []
     if not organization or not organization.strip():
@@ -449,7 +449,7 @@ def assign_role(
         organization: Azure DevOps organization URL or name (e.g., 'https://dev.azure.com/myorg' or 'myorg')
         project_name: Name of the Azure DevOps project
         role_name: Name of the security group/role to assign
-        principal_id: Object ID (GUID) of the user, group, or service principal from Azure AD/Entra ID
+        principal_id: Object ID (GUID) of the user, group, service principal, or managed identity from Azure AD/Entra ID
     
     Returns:
         Role assignment result with status and details
@@ -463,7 +463,7 @@ def assign_role(
     if not role_name:
         missing.append("role_name (e.g., 'Project Administrators', 'Contributors', 'Readers')")
     if not principal_id:
-        missing.append("principal_id (Object ID / GUID of the user, group, or service principal)")
+        missing.append("principal_id (Object ID / GUID of the user, group, service principal, or managed identity)")
     
     if missing:
         return "Missing required parameters:\n" + "\n".join([f"  - {m}" for m in missing])

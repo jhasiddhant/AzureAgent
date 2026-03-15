@@ -432,14 +432,3 @@ function Invoke-PIMRoleActivation {
         }
     }
 }
-
-# Export functions (for dot-sourcing)
-Export-ModuleMember -Function @(
-    'Get-PIMAuthContext',
-    'Get-RoleDefinitionName',
-    'Get-SubscriptionName',
-    'Get-EligiblePIMRoles',
-    'Get-MaxActivationDuration',
-    'Test-RoleAlreadyActive',
-    'Invoke-PIMRoleActivation'
-) -ErrorAction SilentlyContinue

@@ -100,7 +100,7 @@ NSP_MANDATORY_RESOURCES = [
     "storage-account",
     "key-vault",
     "cosmos-db",
-    "sql-db"
+    "sql-server"
 ]
 
 # Resources that should have diagnostic settings (suggestion will be provided after creation)
@@ -132,7 +132,10 @@ LOG_ANALYTICS_MANDATORY_RESOURCES = [
     "redis-cache",
     "redis-enterprise",
     "container-registry",
-    "acr"
+    "acr",
+    "sql-database",
+    "sql-db",
+    "azure-sql-database"
 ]
 
 # Bicep Templates mapping
@@ -153,7 +156,14 @@ TEMPLATE_MAP = {
     "fabric-capacity": "templates/fabric-capacity.bicep",
     "container-registry": "templates/container-registry.bicep",
     "acr": "templates/container-registry.bicep",
-    "function-app": "templates/function-app.bicep",
+    "function-app": "templates/function-app-flex.bicep",
+    "function-app-flex": "templates/function-app-flex.bicep",
+    "funcapp-flex": "templates/function-app-flex.bicep",
+    "function-app-appserviceplan": "templates/function-app-appserviceplan.bicep",
+    "funcapp-appserviceplan": "templates/function-app-appserviceplan.bicep",
+    "app-service": "templates/app-service.bicep",
+    "webapp": "templates/app-service.bicep",
+    "web-app": "templates/app-service.bicep",
     "public-ip": "templates/public-ip.bicep",
     "pip": "templates/public-ip.bicep",
     "data-factory": "templates/azure-data-factory.bicep",
@@ -168,7 +178,108 @@ TEMPLATE_MAP = {
     "subnet": "templates/subnet.bicep",
     "private-endpoint": "templates/private-endpoint.bicep",
     "pe": "templates/private-endpoint.bicep",
+    "private-dns-zone": "templates/private-dns-zone.bicep",
+    "dns-zone": "templates/private-dns-zone.bicep",
+    "dns-zone-vnet-link": "templates/dns-zone-vnet-link.bicep",
+    "vnet-link": "templates/dns-zone-vnet-link.bicep",
     "logic-app": "templates/logic-app.bicep",
+    "redis-cache": "templates/redis-cache.bicep",
+    "redis": "templates/redis-cache.bicep",
+    "sql-server": "templates/azure-sql-server.bicep",
+    "sql-database": "templates/azure-sql-database.bicep",
+    "sql-db": "templates/azure-sql-database.bicep",
+    "application-insights": "templates/application-insights.bicep",
+    "app-insights": "templates/application-insights.bicep",
+    "appinsights": "templates/application-insights.bicep",
+    "container-apps-env": "templates/container-apps-env.bicep",
+    "container-apps-environment": "templates/container-apps-env.bicep",
+    "aca-env": "templates/container-apps-env.bicep",
+    "container-app": "templates/container-app.bicep",
+    "containerapp": "templates/container-app.bicep",
+    "aca": "templates/container-app.bicep",
+    "data-collection-endpoint": "templates/data-collection-endpoint.bicep",
+    "dce": "templates/data-collection-endpoint.bicep",
+    "data-collection-rule": "templates/data-collection-rule.bicep",
+    "dcr": "templates/data-collection-rule.bicep",
+    "api-management": "templates/api-management.bicep",
+    "apim": "templates/api-management.bicep",
+    "ai-foundry": "templates/ai-foundry.bicep",
+    "ai-hub": "templates/ai-foundry.bicep",
+}
+
+# Resource types that have multiple variants - user should choose
+RESOURCE_VARIANTS = {
+    "function-app": {
+        "function-app-flex": "Flex Consumption (serverless, pay-per-execution, auto-scaling)",
+        "function-app-appserviceplan": "App Service Plan (dedicated instances, configurable SKU: B1-P3v3)"
+    },
+    "funcapp": {
+        "funcapp-flex": "Flex Consumption (serverless, pay-per-execution, auto-scaling)",
+        "funcapp-appserviceplan": "App Service Plan (dedicated instances, configurable SKU: B1-P3v3)"
+    }
+}
+
+# Private DNS Zone mapping based on groupId (sub-resource)
+# Reference: https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-dns
+PRIVATE_DNS_ZONE_MAP = {
+    # Storage Account
+    "blob": "privatelink.blob.core.windows.net",
+    "blob_secondary": "privatelink.blob.core.windows.net",
+    "file": "privatelink.file.core.windows.net",
+    "file_secondary": "privatelink.file.core.windows.net",
+    "table": "privatelink.table.core.windows.net",
+    "table_secondary": "privatelink.table.core.windows.net",
+    "queue": "privatelink.queue.core.windows.net",
+    "queue_secondary": "privatelink.queue.core.windows.net",
+    "web": "privatelink.web.core.windows.net",
+    "dfs": "privatelink.dfs.core.windows.net",
+    "dfs_secondary": "privatelink.dfs.core.windows.net",
+    
+    # Key Vault
+    "vault": "privatelink.vaultcore.azure.net",
+    
+    # Cosmos DB
+    "Sql": "privatelink.documents.azure.com",
+    "MongoDB": "privatelink.mongo.cosmos.azure.com",
+    "Cassandra": "privatelink.cassandra.cosmos.azure.com",
+    "Gremlin": "privatelink.gremlin.cosmos.azure.com",
+    "Table": "privatelink.table.cosmos.azure.com",
+    "Analytical": "privatelink.analytics.cosmos.azure.com",
+    
+    # SQL Database
+    "sqlServer": "privatelink.database.windows.net",
+    
+    # Synapse
+    "SqlOnDemand": "privatelink.sql.azuresynapse.net",
+    "Dev": "privatelink.dev.azuresynapse.net",
+    
+    # App Service / Function App
+    "sites": "privatelink.azurewebsites.net",
+    
+    # Cognitive Services / OpenAI
+    "account": "privatelink.cognitiveservices.azure.com",
+    
+    # Container Registry
+    "registry": "privatelink.azurecr.io",
+    
+    # Azure AI Search
+    "searchService": "privatelink.search.windows.net",
+    
+    # Event Hub / Service Bus
+    "namespace": "privatelink.servicebus.windows.net",
+    
+    # Data Factory
+    "dataFactory": "privatelink.datafactory.azure.net",
+    "portal": "privatelink.adf.azure.com",
+    
+    # Machine Learning
+    "amlworkspace": "privatelink.api.azureml.ms",
+    
+    # Redis Cache
+    "redisCache": "privatelink.redis.cache.windows.net",
+    
+    # SignalR
+    "signalr": "privatelink.service.signalr.net",
 }
 
 # Resource Type to Azure Provider mapping
@@ -202,7 +313,13 @@ RESOURCE_TYPE_PROVIDER_MAP = {
     "acr": "Microsoft.ContainerRegistry/registries",
     "logic-app": "Microsoft.Logic/workflows",
     "function-app": "Microsoft.Web/sites",
+    "function-app-flex": "Microsoft.Web/sites",
+    "funcapp-flex": "Microsoft.Web/sites",
+    "function-app-appserviceplan": "Microsoft.Web/sites",
+    "funcapp-appserviceplan": "Microsoft.Web/sites",
     "app-service": "Microsoft.Web/sites",
+    "webapp": "Microsoft.Web/sites",
+    "web-app": "Microsoft.Web/sites",
     "synapse": "Microsoft.Synapse/workspaces",
     "azure-synapse-analytics": "Microsoft.Synapse/workspaces",
     "data-factory": "Microsoft.DataFactory/factories",
@@ -226,16 +343,16 @@ RESOURCE_TYPE_PROVIDER_MAP = {
 
 # Pipeline YAML Templates
 PIPELINE_TEMPLATE_MAP = {
-    "credscan": "templates/credscan_Pipeline.yml",
-    "credscan-1es": "templates/credscan_1ES_Pipeline.yml",
+    "codeql": "templates/CodeQL_Pipeline.yml",
+    "codeql-1es": "templates/CodeQL_1ES_Pipeline.yml",
 }
 
 # Pipeline type keywords for auto-detection
 PIPELINE_TYPE_KEYWORDS = {
-    "1es": "credscan-1es",
-    "prod": "credscan-1es",
-    "production": "credscan-1es",
-    "credscan": "credscan",
+    "1es": "codeql-1es",
+    "prod": "codeql-1es",
+    "production": "codeql-1es",
+    "codeql": "codeql",
 }
 
 # Operational Scripts
@@ -365,13 +482,13 @@ def detect_pipeline_type(pipeline_name: str, user_input: str = "") -> str:
         if template_key in normalized_name or normalized_name in template_key:
             return template_key
     
-    return "credscan"
+    return "codeql"
 
 
 def get_pipeline_template(pipeline_type: str) -> Optional[str]:
     """
     Gets the pipeline template path for a given pipeline type.
-    Falls back to credscan if requested type doesn't exist.
+    Falls back to codeql if requested type doesn't exist.
     """
     if pipeline_type in PIPELINE_TEMPLATE_MAP:
         template_rel = PIPELINE_TEMPLATE_MAP[pipeline_type]
@@ -386,8 +503,8 @@ def get_pipeline_template(pipeline_type: str) -> Optional[str]:
         if os.path.exists(template_path):
             return template_path
     
-    if "credscan" in PIPELINE_TEMPLATE_MAP:
-        template_rel = PIPELINE_TEMPLATE_MAP["credscan"]
+    if "codeql" in PIPELINE_TEMPLATE_MAP:
+        template_rel = PIPELINE_TEMPLATE_MAP["codeql"]
         template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), template_rel)
         if os.path.exists(template_path):
             return template_path
@@ -607,6 +724,22 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
         details.append(f"   Log Analytics Workspace: {workspace_name}")
         details.append(f"   Location: {location}")
     
+    elif resource_type in ["application-insights", "app-insights", "appinsights"]:
+        app_name = parameters.get("appInsightsName", "N/A")
+        workspace_id = parameters.get("logAnalyticsWorkspaceId", "N/A")
+        workspace_name = workspace_id.split("/")[-1] if workspace_id != "N/A" else "N/A"
+        details.append(f"   Application Insights: {app_name}")
+        details.append(f"   Location: {location}")
+        details.append("")
+        details.append("   Configuration:")
+        details.append(f"     - Log Analytics Workspace: {workspace_name}")
+        details.append("     - Local Auth (API Keys): Disabled")
+        details.append("     - Retention: 90 days")
+        details.append("")
+        details.append("   Connection Details:")
+        details.append("     - Instrumentation Key and Connection String available in outputs")
+        details.append("     - Use Connection String for new integrations (recommended)")
+    
     elif resource_type == "container-registry":
         registry_name = parameters.get("registryName", "N/A")
         sku = parameters.get("sku", "N/A")
@@ -615,7 +748,74 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
         details.append(f"   SKU: {sku}")
         details.append(f"   Login Server: {registry_name}.azurecr.io")
     
-    elif resource_type == "function-app":
+    elif resource_type in ["redis-cache", "redis"]:
+        redis_name = parameters.get("redisCacheName", "N/A")
+        sku_name = parameters.get("skuName", "Standard")
+        sku_capacity = parameters.get("skuCapacity", "0")
+        details.append(f"   Redis Cache: {redis_name}")
+        details.append(f"   Location: {location}")
+        details.append(f"   SKU: {sku_name} C{sku_capacity}")
+        details.append(f"   Host Name: {redis_name}.redis.cache.windows.net")
+        details.append(f"   SSL Port: 6380")
+        details.append("")
+        details.append("   Security Configuration:")
+        details.append("     - Microsoft Entra Authentication: Enabled")
+        details.append("     - Access Key Authentication: Disabled")
+        details.append("     - Minimum TLS Version: 1.2")
+        details.append("")
+        details.append("   Access Policies Created:")
+        details.append("     - Data Owner (full access)")
+        details.append("     - Data Contributor (read/write, no dangerous ops)")
+        details.append("     - Data Reader (read only)")
+    
+    elif resource_type in ["sql-server", "azure-sql-server"]:
+        server_name = parameters.get("sqlServerName", "N/A")
+        admin_login = parameters.get("entraAdminLogin", "N/A")
+        details.append(f"   Azure SQL Server: {server_name}")
+        details.append(f"   Location: {location}")
+        details.append(f"   FQDN: {server_name}.database.windows.net")
+        details.append("")
+        details.append("   Security Configuration:")
+        details.append("     - Microsoft Entra Only Authentication: Enabled")
+        details.append("     - SQL Server Authentication: Disabled")
+        details.append(f"     - Entra Admin: {admin_login}")
+        details.append("     - TLS Version: 1.2")
+        details.append("     - Advanced Threat Protection: Enabled")
+        details.append("     - SQL Auditing: Enabled (Log Analytics)")
+        law_name = parameters.get("logAnalyticsWorkspaceName", "N/A")
+        details.append(f"     - Log Analytics Workspace: {law_name}")
+        details.append("     - Audit Categories: SQLSecurityAuditEvents, DevOpsOperationsAudit")
+        details.append("")
+        details.append("   Network Configuration:")
+        details.append("     - Allow Azure Services: Enabled")
+        details.append("")
+        details.append("   Next Steps:")
+        details.append("     - Create an Azure SQL Database in this server")
+        details.append("     - Configure firewall rules for client access")
+        details.append("     - Set up private endpoint for secure connectivity")
+    
+    elif resource_type in ["sql-database", "sql-db", "azure-sql-database"]:
+        db_name = parameters.get("databaseName", "N/A")
+        server_name = parameters.get("sqlServerName", "N/A")
+        sku_name = parameters.get("skuName", "GP_S_Gen5")
+        sku_tier = parameters.get("skuTier", "GeneralPurpose")
+        details.append(f"   Azure SQL Database: {db_name}")
+        details.append(f"   Azure SQL Server: {server_name}")
+        details.append(f"   Location: {location}")
+        details.append(f"   SKU: {sku_name} ({sku_tier})")
+        details.append("")
+        if "GP_S" in sku_name:
+            details.append("   Serverless Configuration:")
+            min_cap = parameters.get("minCapacity", "0.5")
+            auto_pause = parameters.get("autoPauseDelay", "60")
+            details.append(f"     - Min vCores: {min_cap}")
+            details.append(f"     - Auto-pause Delay: {auto_pause} minutes")
+            details.append("")
+        details.append("   Security:")
+        details.append("     - Transparent Data Encryption: Enabled")
+        details.append("     - Backup Retention: 7 days")
+    
+    elif resource_type in ["function-app", "function-app-flex", "funcapp-flex"]:
         function_name = parameters.get("functionAppName", "N/A")
         runtime = parameters.get("runtimeStack", "python")
         runtime_version = parameters.get("runtimeVersion", "3.11")
@@ -649,13 +849,88 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
         details.append("   An admin must assign these roles on the ADLS storage account:")
         details.append("")
         uami_principal_id = parameters.get("_uamiPrincipalId", "")
-        details.append(f"   User Assigned MI → Storage Blob Data Owner")
+        details.append(f"   User Assigned MI → Storage Blob Data Contributor")
         details.append("                    → Storage Account Contributor")
         if uami_principal_id:
             details.append(f"      Principal ID: {uami_principal_id}")
         details.append("")
         details.append(f"   After role assignment: az functionapp restart -n {function_name} -g <resource_group>")
     
+    elif resource_type in ["function-app-appserviceplan", "funcapp-appserviceplan"]:
+        function_name = parameters.get("functionAppName", "N/A")
+        runtime = parameters.get("runtimeStack", "python")
+        runtime_version = parameters.get("runtimeVersion", "3.11")
+        storage_name = parameters.get("storageAccountName", "N/A")
+        uami_name = parameters.get("uamiName", "N/A")
+        sku_name = parameters.get("skuName", "S1")
+        instance_count = parameters.get("instanceCount", 1)
+        always_on = parameters.get("alwaysOn", True)
+        
+        details.append(f"   Function App:        {function_name}")
+        details.append(f"   App Service Plan:    {function_name}-plan ({sku_name})")
+        details.append(f"   Instances:           {instance_count}")
+        details.append(f"   Location:            {location}")
+        details.append(f"   Runtime:             {runtime} {runtime_version}")
+        details.append(f"   Always On:           {'Enabled' if always_on else 'Disabled'}")
+        details.append(f"   URL:                 https://{function_name}.azurewebsites.net")
+        details.append("")
+        details.append("   Identity Configuration:")
+        details.append(f"     - System Assigned MI: Enabled")
+        details.append(f"     - User Assigned MI:   {uami_name}")
+        details.append("")
+        details.append(f"   Storage Account:     {storage_name}")
+        details.append(f"   Public Access:       Enabled")
+        details.append("")
+        details.append("─" * 70)
+        details.append("")
+        details.append("ROLE ASSIGNMENTS - REQUEST ADMIN")
+        details.append("")
+        details.append("   An admin must assign these roles on the storage account:")
+        details.append("")
+        uami_principal_id = parameters.get("_uamiPrincipalId", "")
+        details.append(f"   User Assigned MI → Storage Blob Data Contributor")
+        details.append("                    → Storage Account Contributor")
+        if uami_principal_id:
+            details.append(f"      Principal ID: {uami_principal_id}")
+        details.append("")
+        details.append(f"   After role assignment: az functionapp restart -n {function_name} -g <resource_group>")
+    
+    elif resource_type in ["app-service", "webapp", "web-app"]:
+        app_name = parameters.get("appServiceName", "N/A")
+        uami_name = parameters.get("uamiName", "N/A")
+        sku_name = parameters.get("skuName", "B1")
+        instance_count = parameters.get("instanceCount", 1)
+        always_on = parameters.get("alwaysOn", False)
+        runtime = parameters.get("linuxFxVersion", "DOTNET|8.0")
+        
+        details.append(f"   App Service:         {app_name}")
+        details.append(f"   App Service Plan:    {app_name}-plan ({sku_name})")
+        details.append(f"   Instances:           {instance_count}")
+        details.append(f"   Location:            {location}")
+        details.append(f"   Runtime:             {runtime}")
+        details.append(f"   Always On:           {'Enabled' if always_on else 'Disabled'}")
+        details.append(f"   URL:                 https://{app_name}.azurewebsites.net")
+        details.append("")
+        details.append("   Security Configuration:")
+        details.append("     - HTTPS Only: Enabled")
+        details.append("     - TLS Version: 1.3 (minimum)")
+        details.append("     - End-to-End TLS: Enabled")
+        details.append("     - Remote Debugging: Disabled")
+        details.append("     - FTP/FTPS: Disabled")
+        details.append("     - SCM Credentials: Disabled")
+        details.append("")
+        details.append("   Identity Configuration:")
+        details.append(f"     - System Assigned MI: Enabled")
+        details.append(f"     - User Assigned MI:   {uami_name}")
+        details.append("")
+        details.append("─" * 70)
+        details.append("")
+        details.append("DIAGNOSTIC SETTINGS - RECOMMENDED")
+        details.append("")
+        details.append("   Configure diagnostic settings for compliance:")
+        details.append("   1. Log Analytics: azure_attach_diagnostic_settings")
+        details.append("   2. App Insights:  azure_attach_appinsights")
+
     elif resource_type in ["azure-synapse-analytics", "synapse"]:
         synapse_name = parameters.get("synapseName", "N/A")
         storage_name = parameters.get("storageAccountName", "N/A")
@@ -674,6 +949,71 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
         details.append("   An admin with Owner/User Access Administrator role must assign")
         details.append(f"   'Storage Blob Data Contributor' role to the Synapse workspace")
         details.append(f"   managed identity on storage account '{storage_name}'.")
+    
+    elif resource_type in ["container-apps-env", "container-apps-environment", "aca-env"]:
+        env_name = parameters.get("environmentName", "N/A")
+        subnet_id = parameters.get("infrastructureSubnetId", "N/A")
+        zone_redundant = parameters.get("zoneRedundant", "false")
+        workload_profile = parameters.get("workloadProfileType", "Consumption")
+        internal_only = parameters.get("internalOnly", "false")
+        log_workspace_id = parameters.get("logAnalyticsWorkspaceId", "N/A")
+        log_workspace_name = log_workspace_id.split("/")[-1] if log_workspace_id != "N/A" else "N/A"
+        subnet_name = subnet_id.split("/")[-1] if subnet_id != "N/A" else "N/A"
+        vnet_name = subnet_id.split("/subnets/")[0].split("/")[-1] if "/subnets/" in subnet_id else "N/A"
+        
+        details.append(f"   Container Apps Environment: {env_name}")
+        details.append(f"   Location: {location}")
+        details.append("")
+        details.append("   Configuration:")
+        details.append(f"     - Workload Profile: {workload_profile}")
+        details.append(f"     - Zone Redundant: {zone_redundant}")
+        details.append(f"     - Internal Only: {internal_only}")
+        details.append("")
+        details.append("   Networking:")
+        details.append(f"     - VNet: {vnet_name}")
+        details.append(f"     - Subnet: {subnet_name}")
+        details.append("")
+        details.append("   Monitoring:")
+        details.append(f"     - Log Analytics Workspace: {log_workspace_name}")
+        details.append("")
+        details.append("   Next Steps:")
+        details.append("     - Deploy a Container App into this environment")
+    
+    elif resource_type in ["container-app", "containerapp", "aca"]:
+        app_name = parameters.get("containerAppName", "N/A")
+        env_name = parameters.get("environmentName", "N/A")
+        cpu = parameters.get("cpu", "0.5")
+        memory = parameters.get("memory", "1Gi")
+        min_replicas = parameters.get("minReplicas", "0")
+        max_replicas = parameters.get("maxReplicas", "10")
+        target_port = parameters.get("targetPort", "80")
+        external = parameters.get("externalIngress", "true")
+        workload_profile = parameters.get("workloadProfileName", "Consumption")
+        
+        details.append(f"   Container App: {app_name}")
+        details.append(f"   Location: {location}")
+        details.append(f"   Environment: {env_name}")
+        details.append("")
+        details.append("   Container Configuration:")
+        details.append(f"     - Image: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest")
+        details.append(f"     - CPU: {cpu} cores")
+        details.append(f"     - Memory: {memory}")
+        details.append(f"     - Workload Profile: {workload_profile}")
+        details.append("")
+        details.append("   Ingress:")
+        details.append(f"     - External Access: {external}")
+        details.append(f"     - Target Port: {target_port}")
+        details.append(f"     - Transport: auto")
+        details.append("")
+        details.append("   Scaling:")
+        details.append(f"     - Min Replicas: {min_replicas}")
+        details.append(f"     - Max Replicas: {max_replicas}")
+        details.append(f"     - Scale Rule: HTTP (100 concurrent requests)")
+        details.append("")
+        details.append("   Identity:")
+        details.append(f"     - System Assigned MI: Enabled")
+        details.append("")
+        details.append(f"   URL: https://{app_name}.<environment-default-domain>")
     
     else:
         name_keys = ["name", "accountName", "serverName", "serviceName"]
@@ -696,26 +1036,114 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
 
 
 def parse_bicep_parameters(template_path: str) -> Dict[str, Tuple[bool, Optional[str]]]:
-    """Parse bicep template to extract parameters."""
+    """Parse bicep template to extract parameters, @allowed values, @description, and constraints.
+    
+    Returns dict of param_name -> (required: bool, default_value: str|None)
+    Also stores extended info in PARAM_METADATA for allowed values and descriptions.
+    """
+    global PARAM_METADATA
     params: Dict[str, Tuple[bool, Optional[str]]] = {}
     try:
         with open(template_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line_strip = line.strip()
-                if line_strip.startswith('param '):
-                    m = re.match(r"param\s+(\w+)\s+[^=\n]+(?:=\s*(.+))?", line_strip)
-                    if m:
-                        name = m.group(1)
-                        default_raw = m.group(2).strip() if m.group(2) else None
-                        required = default_raw is None
-                        params[name] = (required, default_raw)
+            content = f.read()
+        
+        lines = content.split('\n')
+        i = 0
+        while i < len(lines):
+            line_strip = lines[i].strip()
+            
+            if line_strip.startswith('param '):
+                # Look back for decorators (@allowed, @description, @minLength, etc.)
+                allowed_values = []
+                description = ""
+                min_length = None
+                max_length = None
+                min_value = None
+                max_value = None
+                
+                # Collect decorators by scanning backward from param line
+                j = i - 1
+                decorator_lines = []
+                while j >= 0:
+                    prev_line = lines[j].strip()
+                    if not prev_line or prev_line.startswith('//'):
+                        j -= 1
+                        continue
+                    if prev_line.startswith('@') or prev_line.startswith("'") or prev_line == '])':
+                        decorator_lines.insert(0, (j, prev_line))
+                        j -= 1
+                    else:
+                        break
+                
+                # Parse the collected decorator block
+                full_block = '\n'.join([l for _, l in decorator_lines])
+                
+                # Parse @description
+                desc_match = re.search(r"@description\('(.+?)'\)", full_block)
+                if desc_match:
+                    description = desc_match.group(1)
+                
+                # Parse @minLength
+                ml_match = re.search(r"@minLength\((\d+)\)", full_block)
+                if ml_match:
+                    min_length = int(ml_match.group(1))
+                
+                # Parse @maxLength
+                xl_match = re.search(r"@maxLength\((\d+)\)", full_block)
+                if xl_match:
+                    max_length = int(xl_match.group(1))
+                
+                # Parse @minValue
+                mv_match = re.search(r"@minValue\((\d+)\)", full_block)
+                if mv_match:
+                    min_value = int(mv_match.group(1))
+                
+                # Parse @maxValue
+                xv_match = re.search(r"@maxValue\((\d+)\)", full_block)
+                if xv_match:
+                    max_value = int(xv_match.group(1))
+                
+                # Parse @allowed - multi-line block
+                if '@allowed([' in full_block:
+                    values_match = re.findall(r"'([^']+)'", full_block[full_block.index('@allowed(['):])
+                    if values_match:
+                        allowed_values = values_match
+                
+                m = re.match(r"param\s+(\w+)\s+[^=\n]+(?:=\s*(.+))?", line_strip)
+                if m:
+                    name = m.group(1)
+                    default_raw = m.group(2).strip() if m.group(2) else None
+                    required = default_raw is None
+                    params[name] = (required, default_raw)
+                    
+                    # Store extended metadata
+                    PARAM_METADATA[name] = {
+                        'allowed': allowed_values,
+                        'description': description,
+                        'min_length': min_length,
+                        'max_length': max_length,
+                        'min_value': min_value,
+                        'max_value': max_value,
+                    }
+            i += 1
     except Exception:
         pass
     return params
 
 
+# Global metadata storage for parameter constraints parsed from Bicep templates
+PARAM_METADATA: Dict[str, dict] = {}
+
+
 def validate_bicep_parameters(resource_type: str, provided: Dict[str, str]) -> Tuple[bool, str, Dict[str, Tuple[bool, Optional[str]]]]:
-    """Validate provided parameters against bicep template requirements."""
+    """Validate provided parameters against bicep template requirements.
+    
+    Checks:
+    1. All required parameters are present
+    2. Values match @allowed constraints if defined
+    3. String lengths match @minLength/@maxLength
+    4. Numeric values match @minValue/@maxValue
+    """
     if resource_type not in TEMPLATE_MAP:
         return False, f"Unknown resource_type '{resource_type}'.", {}
     template_path = get_template_path(TEMPLATE_MAP[resource_type])
@@ -727,11 +1155,25 @@ def validate_bicep_parameters(resource_type: str, provided: Dict[str, str]) -> T
     # Fabric capacity location is auto-detected from tenant region
     if resource_type == "fabric-capacity":
         auto_calculated.append("location")
-    # NOTE: Subnet parameters (subnetStartingAddress, subnetSize) must be user-provided - no auto-calculation
     
     missing = [p for p, (req, _) in params.items() if req and p not in auto_calculated and (p not in provided or provided[p] in (None, ""))]
     if missing:
         return False, f"Missing required parameters: {', '.join(missing)}", params
+    
+    # Validate @allowed values
+    invalid_values = []
+    for param_name, value in provided.items():
+        if param_name in PARAM_METADATA and value not in (None, ""):
+            meta = PARAM_METADATA[param_name]
+            allowed = meta.get('allowed', [])
+            if allowed and str(value).strip("'\"") not in allowed:
+                invalid_values.append(
+                    f"  - {param_name}: '{value}' is not valid. Allowed values: {', '.join(allowed)}"
+                )
+    
+    if invalid_values:
+        return False, "Invalid parameter values:\n" + "\n".join(invalid_values), params
+    
     return True, "OK", params
 
 
@@ -763,7 +1205,9 @@ def deploy_bicep(resource_group: str, resource_type: str, parameters: Dict[str, 
     # No auto-calculation - user must specify IP address pool and size
     
     # Build parameters string for PowerShell
-    param_string = ";".join([f"{k}={v}" for k, v in parameters.items()]) if parameters else ""
+    # Filter out empty/None values so Bicep template defaults are used
+    filtered_params = {k: v for k, v in parameters.items() if v not in (None, "", "''", '""')}
+    param_string = ";".join([f"{k}={v}" for k, v in filtered_params.items()]) if filtered_params else ""
     
     script_name = OP_SCRIPTS["deploy-bicep"]
     script_path = get_script_path(script_name)

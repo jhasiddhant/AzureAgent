@@ -80,9 +80,104 @@ param groupId string
 @description('Resource ID of the subnet to deploy the Private Endpoint into.')
 param subnetId string
 
-@description('Optional: Resource ID of an existing Private DNS Zone for automatic DNS registration. Leave empty to skip DNS configuration.')
-param privateDnsZoneId string = ''
+@description('Resource ID of the VNet (used for DNS zone link). If not provided, will be extracted from subnetId.')
+param vnetId string = ''
 
+@description('Name for the VNet link in DNS zone (will be auto-generated if not provided).')
+param vnetLinkName string = ''
+
+@description('Enable auto-registration of VM DNS records in the DNS zone')
+param enableDnsAutoRegistration bool = false
+
+@description('Resource ID of an EXISTING Private DNS Zone. If provided, skips DNS zone creation and uses this zone instead.')
+param existingDnsZoneId string = ''
+
+@description('Set to true if the VNet link already exists for this DNS zone. Skips VNet link creation.')
+param skipVnetLink bool = false
+
+// DNS Zone mapping based on groupId
+// Reference: https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-dns
+var dnsZoneMapping = {
+  // Storage Account
+  blob: 'privatelink.blob.${environment().suffixes.storage}'
+  blob_secondary: 'privatelink.blob.${environment().suffixes.storage}'
+  file: 'privatelink.file.${environment().suffixes.storage}'
+  file_secondary: 'privatelink.file.${environment().suffixes.storage}'
+  table: 'privatelink.table.${environment().suffixes.storage}'
+  table_secondary: 'privatelink.table.${environment().suffixes.storage}'
+  queue: 'privatelink.queue.${environment().suffixes.storage}'
+  queue_secondary: 'privatelink.queue.${environment().suffixes.storage}'
+  web: 'privatelink.web.${environment().suffixes.storage}'
+  dfs: 'privatelink.dfs.${environment().suffixes.storage}'
+  dfs_secondary: 'privatelink.dfs.${environment().suffixes.storage}'
+  
+  // Key Vault
+  vault: 'privatelink.vaultcore.azure.net'
+  
+  // Cosmos DB
+  Sql: 'privatelink.documents.azure.com'
+  MongoDB: 'privatelink.mongo.cosmos.azure.com'
+  Cassandra: 'privatelink.cassandra.cosmos.azure.com'
+  Gremlin: 'privatelink.gremlin.cosmos.azure.com'
+  Table: 'privatelink.table.cosmos.azure.com'
+  Analytical: 'privatelink.analytics.cosmos.azure.com'
+  
+  // SQL Database
+  sqlServer: 'privatelink${environment().suffixes.sqlServerHostname}'
+  
+  // Synapse
+  SqlOnDemand: 'privatelink.sql.azuresynapse.net'
+  Dev: 'privatelink.dev.azuresynapse.net'
+  
+  // App Service / Function App
+  sites: 'privatelink.azurewebsites.net'
+  
+  // Cognitive Services / OpenAI
+  account: 'privatelink.cognitiveservices.azure.com'
+  
+  // Container Registry
+  registry: 'privatelink.azurecr.io'
+  
+  // Azure AI Search
+  searchService: 'privatelink.search.windows.net'
+  
+  // Event Hub / Service Bus
+  namespace: 'privatelink.servicebus.windows.net'
+  
+  // Data Factory
+  dataFactory: 'privatelink.datafactory.azure.net'
+  portal: 'privatelink.adf.azure.com'
+  
+  // Machine Learning
+  amlworkspace: 'privatelink.api.azureml.ms'
+  
+  // Redis Cache
+  redisCache: 'privatelink.redis.cache.windows.net'
+  
+  // SignalR
+  signalr: 'privatelink.service.signalr.net'
+}
+
+// Get DNS zone name from mapping
+var privateDnsZoneName = dnsZoneMapping[?groupId] ?? ''
+
+// Determine if we should create a new DNS zone or use existing
+var shouldCreateDnsZone = !empty(privateDnsZoneName) && empty(existingDnsZoneId)
+var shouldLinkNewZone = shouldCreateDnsZone && !skipVnetLink
+var shouldLinkExistingZone = !empty(existingDnsZoneId) && !skipVnetLink
+var hasDnsConfig = !empty(privateDnsZoneName) || !empty(existingDnsZoneId)
+
+// Extract existing DNS zone name for resource naming
+var existingDnsZoneNameValue = !empty(existingDnsZoneId) ? last(split(existingDnsZoneId, '/')) : ''
+
+// Extract VNet ID from subnet ID if not provided
+// Subnet ID format: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Network/virtualNetworks/{vnet}/subnets/{subnet}
+var subnetParts = split(subnetId, '/')
+var extractedVnetId = vnetId != '' ? vnetId : '${join(take(subnetParts, 9), '/')}'
+var vnetName = last(split(extractedVnetId, '/'))
+var actualLinkName = vnetLinkName != '' ? vnetLinkName : '${vnetName}-link'
+
+// Create Private Endpoint
 resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-07-01' = {
   name: privateEndpointName
   location: location
@@ -104,15 +199,53 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-07-01' = {
   }
 }
 
-resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-07-01' = if (!empty(privateDnsZoneId)) {
+// Create Private DNS Zone (only if we need to create new, not using existing)
+resource privateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = if (shouldCreateDnsZone) {
+  name: privateDnsZoneName
+  location: 'global'
+  properties: {}
+}
+
+// Create VNet Link to DNS Zone (for newly created DNS zones)
+resource vnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (shouldLinkNewZone) {
+  parent: privateDnsZone
+  name: actualLinkName
+  location: 'global'
+  properties: {
+    registrationEnabled: enableDnsAutoRegistration
+    virtualNetwork: {
+      id: extractedVnetId
+    }
+  }
+}
+
+// Create VNet Link to an existing DNS Zone (ensures DNS resolves from the VNet)
+resource vnetLinkExisting 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (shouldLinkExistingZone) {
+  name: '${existingDnsZoneNameValue}/${actualLinkName}'
+  location: 'global'
+  properties: {
+    registrationEnabled: enableDnsAutoRegistration
+    virtualNetwork: {
+      id: extractedVnetId
+    }
+  }
+}
+
+// Create DNS Zone Group to link PE with DNS Zone (use existing or new zone)
+// Depends on VNet links so DNS resolution works before A records are registered
+resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-07-01' = if (hasDnsConfig) {
   parent: privateEndpoint
   name: 'default'
+  dependsOn: [
+    vnetLink
+    vnetLinkExisting
+  ]
   properties: {
     privateDnsZoneConfigs: [
       {
-        name: 'config1'
+        name: replace(!empty(existingDnsZoneId) ? last(split(existingDnsZoneId, '/')) : privateDnsZoneName, '.', '-')
         properties: {
-          privateDnsZoneId: privateDnsZoneId
+          privateDnsZoneId: !empty(existingDnsZoneId) ? existingDnsZoneId : privateDnsZone.id
         }
       }
     ]
@@ -122,3 +255,7 @@ resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneG
 output privateEndpointId string = privateEndpoint.id
 output privateEndpointName string = privateEndpoint.name
 output networkInterfaceId string = privateEndpoint.properties.networkInterfaces[0].id
+output privateDnsZoneId string = shouldCreateDnsZone ? privateDnsZone.id : existingDnsZoneId
+output privateDnsZoneName string = shouldCreateDnsZone ? privateDnsZone.name : (!empty(existingDnsZoneId) ? last(split(existingDnsZoneId, '/')) : '')
+output vnetLinkId string = shouldLinkNewZone ? vnetLink.id : (shouldLinkExistingZone ? vnetLinkExisting.id : '')
+

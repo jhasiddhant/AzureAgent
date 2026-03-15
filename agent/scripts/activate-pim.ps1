@@ -6,19 +6,23 @@
     This script activates eligible PIM roles for the current user with the specified
     justification and duration. Supports two modes:
     1. ActivateAll: Activates ALL eligible roles across ALL scopes
-    2. Specific: Activates specific roles at specific scopes
+    2. Specific: Activates a specific role at a specific scope (using friendly names)
 
 .PARAMETER ActivateAll
     When set, activates ALL eligible PIM roles across all scopes.
 
-.PARAMETER Scopes
-    Comma-separated list of scopes to activate roles on (required when ActivateAll is not set).
-    Example: "/subscriptions/sub-id-1,/subscriptions/sub-id-2/resourceGroups/rg-name"
+.PARAMETER SubscriptionName
+    Name of the subscription for specific role activation (e.g., "MCAPSDE_DEV").
 
-.PARAMETER RoleNames
-    Optional. Comma-separated list of role names to activate.
-    If not provided with scopes, activates all eligible roles at those scopes.
-    Example: "Contributor,Storage Blob Data Owner"
+.PARAMETER ResourceGroupName
+    Optional. Name of the resource group for RG-level scope.
+
+.PARAMETER ResourceName
+    Optional. Name of the resource for resource-level scope.
+
+.PARAMETER RoleName
+    Name of the role to activate (e.g., "Contributor", "Azure AI User").
+    Required when not using ActivateAll.
 
 .PARAMETER Justification
     Business justification for the PIM activation (required).
@@ -30,10 +34,10 @@
     .\activate-pim.ps1 -ActivateAll -Justification "Platform work"
 
 .EXAMPLE
-    .\activate-pim.ps1 -ActivateAll -Justification "Platform work" -DurationHours 4
+    .\activate-pim.ps1 -SubscriptionName "MCAPSDE_DEV" -RoleName "Contributor" -Justification "Deployment"
 
 .EXAMPLE
-    .\activate-pim.ps1 -Scopes "/subscriptions/xxx" -RoleNames "Contributor" -Justification "Deployment" -DurationHours 2
+    .\activate-pim.ps1 -SubscriptionName "MCAPSDE_DEV" -ResourceGroupName "myRG" -RoleName "Contributor" -Justification "Deployment"
 #>
 
 param(
@@ -41,10 +45,16 @@ param(
     [switch]$ActivateAll,
     
     [Parameter(Mandatory = $false)]
-    [string]$Scopes = "",
+    [string]$SubscriptionName = "",
     
     [Parameter(Mandatory = $false)]
-    [string]$RoleNames = "",
+    [string]$ResourceGroupName = "",
+    
+    [Parameter(Mandatory = $false)]
+    [string]$ResourceName = "",
+    
+    [Parameter(Mandatory = $false)]
+    [string]$RoleName = "",
     
     [Parameter(Mandatory = $true)]
     [string]$Justification,
@@ -60,19 +70,14 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 . "$scriptDir\pim-utils.ps1"
 
 # Validate parameters
-if (-not $ActivateAll -and -not $Scopes) {
-    Write-Error "Either -ActivateAll or -Scopes must be provided"
+if (-not $ActivateAll -and -not $SubscriptionName) {
+    Write-Error "Either -ActivateAll or -SubscriptionName must be provided"
     exit 1
 }
 
-# Parse comma-separated inputs
-$scopeList = @()
-if ($Scopes) {
-    $scopeList = $Scopes -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
-}
-$roleNameList = @()
-if ($RoleNames) {
-    $roleNameList = $RoleNames -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+if (-not $ActivateAll -and -not $RoleName) {
+    Write-Error "When not using -ActivateAll, -RoleName must be specified"
+    exit 1
 }
 
 Write-Host "==========================================" -ForegroundColor Cyan
@@ -81,11 +86,14 @@ Write-Host "==========================================" -ForegroundColor Cyan
 if ($ActivateAll) {
     Write-Host "Mode          : Activate ALL eligible roles" -ForegroundColor Magenta
 } else {
-    Write-Host "Scopes        : $($scopeList -join ', ')" -ForegroundColor Gray
-    if ($roleNameList.Count -gt 0) {
-        Write-Host "Roles         : $($roleNameList -join ', ')" -ForegroundColor Gray
-    } else {
-        Write-Host "Roles         : All eligible at specified scopes" -ForegroundColor Gray
+    Write-Host "Mode          : Specific role activation" -ForegroundColor Magenta
+    Write-Host "Role          : $RoleName" -ForegroundColor Gray
+    Write-Host "Subscription  : $SubscriptionName" -ForegroundColor Gray
+    if ($ResourceGroupName) {
+        Write-Host "Resource Group: $ResourceGroupName" -ForegroundColor Gray
+    }
+    if ($ResourceName) {
+        Write-Host "Resource      : $ResourceName" -ForegroundColor Gray
     }
 }
 Write-Host "Justification : $Justification" -ForegroundColor Gray
@@ -112,10 +120,41 @@ catch {
 
 # Get eligible roles based on mode
 Write-Host "`nFetching eligible PIM roles..." -ForegroundColor Yellow
+
 if ($ActivateAll) {
-    $eligibleRoles = Get-EligiblePIMRoles -Headers $authContext.Headers -FilterScopes $null -FilterRoleNames $roleNameList
+    # Mode 1: Activate ALL eligible roles (no filtering)
+    $eligibleRoles = Get-EligiblePIMRoles -Headers $authContext.Headers -FilterScopes $null -FilterRoleNames $null
 } else {
-    $eligibleRoles = Get-EligiblePIMRoles -Headers $authContext.Headers -FilterScopes $scopeList -FilterRoleNames $roleNameList
+    # Mode 2: Activate specific role at specific scope
+    # First, resolve subscription name to ID
+    $subscriptions = az account list --output json 2>$null | ConvertFrom-Json
+    $matchingSub = $subscriptions | Where-Object { $_.name -eq $SubscriptionName -or $_.name -like "*$SubscriptionName*" } | Select-Object -First 1
+    
+    if (-not $matchingSub) {
+        Write-Host "Error: Subscription '$SubscriptionName' not found in your account list." -ForegroundColor Red
+        Write-Host "Available subscriptions:" -ForegroundColor Yellow
+        $subscriptions | ForEach-Object { Write-Host "  - $($_.name)" -ForegroundColor Gray }
+        exit 1
+    }
+    
+    $subscriptionId = $matchingSub.id
+    Write-Host "Resolved subscription: $($matchingSub.name) ($subscriptionId)" -ForegroundColor Green
+    
+    # Build scope filter
+    $targetScopeBase = "/subscriptions/$subscriptionId"
+    if ($ResourceGroupName) {
+        $targetScopeBase = "$targetScopeBase/resourceGroups/$ResourceGroupName"
+    }
+    
+    Write-Host "Target scope base: $targetScopeBase" -ForegroundColor Gray
+    
+    # Get eligible roles filtered by scope prefix and role name
+    $eligibleRoles = Get-EligiblePIMRoles -Headers $authContext.Headers -FilterScopes @($targetScopeBase) -FilterRoleNames @($RoleName)
+    
+    # If ResourceName is specified, further filter to match resource
+    if ($ResourceName -and $eligibleRoles.Count -gt 0) {
+        $eligibleRoles = $eligibleRoles | Where-Object { $_.Scope -like "*$ResourceName*" }
+    }
 }
 
 if ($eligibleRoles.Count -eq 0) {
@@ -124,6 +163,9 @@ if ($eligibleRoles.Count -eq 0) {
         summary = @{ total = 0; successful = 0; skipped = 0; failed = 0 }
         justification = $Justification
         message = "No eligible PIM roles found"
+    }
+    if (-not $ActivateAll) {
+        $output.message = "No eligible role '$RoleName' found at scope '$targetScopeBase'. Check that you have this role assigned in PIM."
     }
     Write-Host "`nJSON Output:" -ForegroundColor Cyan
     $output | ConvertTo-Json -Depth 5
