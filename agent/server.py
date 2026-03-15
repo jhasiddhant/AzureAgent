@@ -197,69 +197,134 @@ def azure_assign_rbac_role(
 
 @mcp.tool()
 def azure_activate_pim_roles(
-    justification: str,
+    justification: str = None,
     activate_all: bool = False,
-    scopes: list = None,
-    role_names: list = None,
+    subscription_name: str = None,
+    resource_group_name: str = None,
+    resource_name: str = None,
+    role_name: str = None,
     duration_hours: int = 0
 ) -> str:
     """
     Activates eligible PIM (Privileged Identity Management) roles for the current user.
     
-    IMPORTANT: Always ask the user to provide the justification. Do NOT guess or make up
-    a justification. The justification is required by policy and must come from the user.
+    CRITICAL: Justification is MANDATORY. You MUST ask the user for their business 
+    justification BEFORE calling this tool. Do NOT guess or make up a justification.
+    Ask: "What is your business justification for this PIM activation?"
     
-    PIM provides just-in-time privileged access with automatic expiration.
-    Supports two modes:
+    Supports TWO distinct modes:
     
-    MODE 1 - Activate ALL eligible roles (activate_all=True):
-        Fetches all eligible PIM roles across ALL scopes and activates them.
-        Use this when user says "activate all PIMs" or "activate all my PIM roles".
+    ═══════════════════════════════════════════════════════════════════════════════
+    MODE 1 - ACTIVATE ALL (activate_all=True)
+    ═══════════════════════════════════════════════════════════════════════════════
+    Use when user says: "activate all my PIM roles", "activate all PIMs", 
+    "activate everything", "activate all eligible roles"
     
-    MODE 2 - Activate specific roles (activate_all=False):
-        Activates roles at specified scopes, optionally filtered by role names.
-        Use this when user provides specific scope and/or role names.
+    This mode activates ALL eligible PIM roles across ALL scopes.
+    Do NOT pass role_name, subscription_name, or resource_group_name in this mode.
+    
+    Example:
+        azure_activate_pim_roles(justification="<user provided>", activate_all=True)
+    
+    ═══════════════════════════════════════════════════════════════════════════════
+    MODE 2 - ACTIVATE SPECIFIC ROLE (activate_all=False)
+    ═══════════════════════════════════════════════════════════════════════════════
+    Use when user specifies a particular role AND scope, such as:
+    - "activate Contributor at MCAPSDE_DEV"
+    - "activate Azure AI User on mcapsde_dev subscription"
+    - "activate Data Factory Contributor at dfdataplatformprod"
+    - "activate Contributor on csu_dataplatform_dev resource group"
+    
+    REQUIRED in this mode:
+    - role_name: The exact role name (e.g., "Contributor", "Azure AI User")
+    - subscription_name: The subscription name (e.g., "MCAPSDE_DEV")
+    
+    OPTIONAL:
+    - resource_group_name: For RG-level scope (e.g., "csu_dataplatform_dev")
+    - resource_name: For resource-level scope (e.g., "dfdataplatformprod")
+    
+    Example:
+        azure_activate_pim_roles(
+            justification="<user provided>",
+            role_name="Contributor",
+            subscription_name="MCAPSDE_DEV"
+        )
+    
+    ═══════════════════════════════════════════════════════════════════════════════
     
     Args:
-        justification: Business justification for the activation (required by policy).
-            MUST be provided by the user - do not guess this value.
-            Ask the user: "What is your business justification for this PIM activation?"
-        activate_all: If True, activates ALL eligible roles across ALL scopes.
-            If False (default), requires scopes parameter.
-        scopes: List of Azure scopes to activate roles on (required when activate_all=False).
-            Examples:
-            - ["/subscriptions/<sub-id>"] - Subscription level
-            - ["/subscriptions/<sub-id>/resourceGroups/<rg-name>"] - RG level
-        role_names: Optional. List of specific role names to activate.
-            If not provided, activates all eligible roles.
-            Examples: ["Contributor"], ["Contributor", "Storage Blob Data Owner"]
-        duration_hours: Optional. Duration in hours for all roles.
-            If 0 or not specified (default), uses max allowed duration per role from policy.
-            Each role may have different max duration - this uses each role's maximum.
+        justification: Business justification (REQUIRED - must come from user)
+        activate_all: Set True ONLY for "activate all" mode
+        subscription_name: Subscription name for specific role mode (e.g., "MCAPSDE_DEV")
+        resource_group_name: Resource group name for RG-level scope (optional)
+        resource_name: Resource name for resource-level scope (optional)
+        role_name: Specific role to activate (e.g., "Contributor", "Reader")
+        duration_hours: Duration in hours (0 = max allowed per role policy)
     
     Returns:
-        Summary of activation results for each role:
-        - Success: Role activated with actual duration
-        - Skipped: Role already active
-        - PendingApproval: Role requires approval (check PIM portal)
-        - Failed: Activation failed with error message
+        Activation results with success/failure status per role
+    """
+    return azure.activate_pim_roles(
+        justification=justification,
+        activate_all=activate_all,
+        subscription_name=subscription_name,
+        resource_group_name=resource_group_name,
+        resource_name=resource_name,
+        role_name=role_name,
+        duration_hours=duration_hours
+    )
+
+
+@mcp.tool()
+def azure_assign_pim_role(
+    scope: str = None,
+    principal_id: str = None,
+    role_name: str = None,
+    duration: str = "P1Y"
+) -> str:
+    """
+    Assigns a PIM eligible role to a user, group, or service principal.
     
-    Examples:
-        # CASE 1: Activate ALL eligible PIM roles with max duration per role
-        # First ask user: "What is your business justification?"
-        azure_activate_pim_roles(
-            justification="<user provided justification>",
-            activate_all=True
-        )
-        
-        # CASE 2: Activate specific roles at specific scopes
-        azure_activate_pim_roles(
-            justification="<user provided justification>",
-            scopes=["/subscriptions/3ae194eb-3ad9-4d16-b344-0d36018a362a"],
-            role_names=["Contributor"]
+    Creates an ELIGIBLE (not active) role assignment. The principal can then
+    activate the role via PIM when needed.
+    
+    NOTE: PIM eligible roles can ONLY be assigned at Subscription or Resource Group level.
+    Resource-level PIM assignments are NOT supported.
+    
+    REQUIRED PARAMETERS - Ask user for all three:
+    1. scope: Where to assign the role (subscription or RG only)
+    2. principal_id: Object ID of the principal (user/group/SP)
+    3. role_name: Which role to assign
+    
+    Args:
+        scope: Target scope for the assignment (required)
+               - Subscription: /subscriptions/{subscription-id}
+               - Resource Group: /subscriptions/{sub-id}/resourceGroups/{rg-name}
+               (Resource-level scope is NOT supported for PIM)
+        principal_id: Object ID of the user, group, or service principal (required)
+                      Find in: Azure Portal > Entra ID > Users > select user > Object ID
+        role_name: Name of the role to assign (required)
+                   Common roles: Contributor, Reader, Owner, Storage Blob Data Contributor,
+                   Key Vault Administrator, Key Vault Secrets User
+        duration: ISO 8601 duration (default: P1Y = 1 year)
+                  Examples: P1Y (1 year), P6M (6 months), P30D (30 days), P7D (1 week)
+    
+    Returns:
+        Assignment result
+    
+    Example:
+        azure_assign_pim_role(
+            scope="/subscriptions/.../resourceGroups/my-rg",
+            principal_id="f9dc27bf-e63a-4f03-bb2a-eb9e0227879c",
+            role_name="Contributor"
         )
     """
-    return azure.activate_pim_roles(justification, activate_all, scopes, role_names, duration_hours)
+    return azure.assign_pim_eligible_role(
+        scope=scope,
+        principal_id=principal_id,
+        role_name=role_name,
+        duration=duration
+    )
 
 
 @mcp.tool()
@@ -282,12 +347,18 @@ def azure_get_resource_info(
             - "find_resource": Find which RG contains a resource (requires resource_name)
             - "check_type_in_rg": Check if resource type exists in RG (requires resource_group, resource_type)
             - "get_rg_info": Get resource group info (requires resource_group)
-            - "custom": Run a custom Azure Resource Graph query (requires custom_query)
-        resource_name: Resource name (for get_resource, find_resource) - supports partial match
+            - "get_identity": Get principalId (object ID) and clientId for any resource with managed identity.
+                              For UAMIs: set resource_type="uami". Returns principalId, clientId, tenantId.
+                              For other resources: returns system-assigned and/or user-assigned identity details.
+            - "custom": Run a custom Azure Resource Graph KQL query (requires custom_query). 
+                        Example: "Resources | where type == 'Microsoft.Compute/virtualMachines'"
+            - "cli_raw": Run a raw Azure CLI command (requires custom_query).
+                         Example: "az identity show --name my-uami -g my-rg"
+        resource_name: Resource name (for get_resource, find_resource, get_identity)
         resource_group: Resource group name (for filtering or specific queries)
-        resource_type: Resource type filter (storage-account, key-vault, openai, etc.)
+        resource_type: Resource type filter (storage-account, key-vault, openai, uami, etc.)
         location: Location filter
-        custom_query: Azure Resource Graph query string (for query_type="custom")
+        custom_query: Azure Resource Graph KQL query (for query_type="custom") or CLI command (for query_type="cli_raw")
     
     Returns:
         JSON with query results
@@ -466,49 +537,553 @@ def azure_attach_diagnostic_settings(resource_group: str, workspace_id: str = No
     return azure.attach_diagnostic_settings(resource_group, workspace_id, resource_id)
 
 
+@mcp.tool()
+def azure_attach_appinsights(
+    app_insights_name: str,
+    app_insights_resource_group: str,
+    target_app_name: str,
+    target_resource_group: str,
+    target_type: str
+) -> str:
+    """
+    Attaches Application Insights to a Function App or App Service.
+    
+    This configures the app to send telemetry, logs, and metrics to Application Insights.
+    
+    Args:
+        app_insights_name: Name of the Application Insights instance
+        app_insights_resource_group: Resource group containing Application Insights
+        target_app_name: Name of the Function App or App Service to attach
+        target_resource_group: Resource group containing the target app
+        target_type: Type of target app - 'functionapp' or 'webapp'
+    
+    Returns:
+        Attachment result with configured settings
+    """
+    return azure.attach_appinsights(
+        app_insights_name, app_insights_resource_group,
+        target_app_name, target_resource_group, target_type
+    )
+
+
 # ============================================================================
 # AZURE TOOLS - Resource Management
 # ============================================================================
 
 @mcp.tool()
 def azure_get_bicep_requirements(resource_type: str) -> str:
-    """(Bicep Path) Returns required/optional params for a Bicep template."""
+    """(Bicep Path) Returns required/optional params for a Bicep template.
+    
+    IMPORTANT: For resources with hosting variants, always use the BASE type first:
+    - For function apps: use 'function-app' (NOT 'function-app-flex' or 'function-app-appserviceplan')
+    This returns the available hosting options for the user to choose from.
+    Only use the specific variant AFTER the user has explicitly chosen one.
+    """
     return azure.get_bicep_requirements(resource_type)
 
 
 @mcp.tool()
 def azure_create_resource(resource_type: str, resource_group: str = None, parameters: str = None) -> str:
-    """
-    Interactive Azure resource creation.
+    """Interactive Azure resource creation using Bicep templates.
     
-    Workflow:
-    1. Validates resource type
-    2. Requests missing required parameters from user
-    3. Deploys resource using Bicep template
+    IMPORTANT: For resources with hosting variants, always use the BASE type first:
+    - For function apps: use 'function-app' (NOT 'function-app-flex' or 'function-app-appserviceplan')
+    This returns the available hosting options for the user to choose from.
+    Only use the specific variant AFTER the user has explicitly chosen one.
     
     Args:
-        resource_type: Type of resource to create (storage-account, key-vault, openai, ai-search, ai-foundry, cosmos-db, sql-db, log-analytics)
+        resource_type: Type of resource to create (e.g. storage-account, key-vault, function-app, etc.)
         resource_group: Azure resource group name
-        parameters: JSON string of resource-specific parameters (will prompt for missing required params)
+        parameters: JSON string of resource-specific parameters
     
     Returns:
-        Deployment status
+        Deployment status with resource details
     """
     return azure.create_resource(resource_type, resource_group, parameters)
 
 
 @mcp.tool()
-def azure_deploy_bicep_resource(resource_group: str, resource_type: str, parameters: dict[str, str]) -> str:
+def azure_create_private_endpoint(
+    resource_group: str,
+    private_endpoint_name: str,
+    target_resource_id: str,
+    group_id: str,
+    subnet_id: str,
+    location: str,
+    vnet_id: str = None,
+    vnet_link_name: str = None
+) -> str:
     """
-    Internal deployment function - validates and deploys a resource.
+    Creates a Private Endpoint with automatic DNS zone configuration.
     
-    Warning: Users should call create_azure_resource() instead for interactive parameter collection.
+    This tool intelligently handles DNS zone management:
+    - If DNS zone doesn't exist: Creates PE + DNS zone + VNet link
+    - If DNS zone exists but VNet link doesn't: Creates PE + adds new VNet link to existing zone
+    - If both exist: Creates PE and links to existing DNS zone
     
-    This function:
-    1. Validates all parameters against Bicep template
-    2. Deploys the resource
+    DNS zones are automatically determined based on the group_id (sub-resource type):
+    - Storage: blob, file, table, queue, dfs, web → privatelink.{service}.core.windows.net
+    - Key Vault: vault → privatelink.vaultcore.azure.net
+    - SQL: sqlServer → privatelink.database.windows.net
+    - Cosmos DB: Sql, MongoDB, Cassandra → privatelink.{type}.cosmos.azure.com
+    - OpenAI/Cognitive: account → privatelink.cognitiveservices.azure.com
+    - Container Registry: registry → privatelink.azurecr.io
+    - And more...
+    
+    Args:
+        resource_group: Resource group name for the private endpoint
+        private_endpoint_name: Name for the private endpoint (e.g., "pe-storage-blob")
+        target_resource_id: Full resource ID of the target Azure resource
+        group_id: Sub-resource type for the connection (e.g., 'blob', 'vault', 'sqlServer', 'account')
+        subnet_id: Full resource ID of the subnet to deploy the PE into
+        location: Azure region (should match VNet location)
+        vnet_id: Optional - VNet resource ID (auto-extracted from subnet_id if not provided)
+        vnet_link_name: Optional - Custom name for DNS zone VNet link
+    
+    Returns:
+        Deployment status with details about PE and DNS configuration
     """
-    return azure.deploy_bicep_resource(resource_group, resource_type, parameters)
+    return azure.create_private_endpoint(
+        resource_group=resource_group,
+        private_endpoint_name=private_endpoint_name,
+        target_resource_id=target_resource_id,
+        group_id=group_id,
+        subnet_id=subnet_id,
+        location=location,
+        vnet_id=vnet_id,
+        vnet_link_name=vnet_link_name
+    )
+
+
+@mcp.tool()
+def azure_manage_pe_connection(
+    action: str = None,
+    resource_id: str = None,
+    connection_id: str = None,
+    connection_name: str = None,
+    description: str = None
+) -> str:
+    """
+    Manages private endpoint connections on Azure resources - list, approve, or reject.
+    
+    This unified tool handles all PE connection operations:
+    - 'list': Show all PE connections (pending/approved/rejected) on a resource
+    - 'approve': Approve a pending PE connection
+    - 'reject': Reject a PE connection request
+    
+    Workflow:
+    1. Call with action='list' and resource_id to see all connections
+    2. Copy the connection_id of the target connection
+    3. Call with action='approve' or 'reject' and the connection_id
+    
+    Args:
+        action: Action to perform - 'list', 'approve', or 'reject' (required)
+        resource_id: Full resource ID of the target resource (required for 'list')
+        connection_id: Full PE connection ID (for approve/reject - preferred)
+        connection_name: PE connection name (alternative to connection_id, use with resource_id)
+        description: Approval/rejection reason (optional)
+    
+    Returns:
+        List of connections or action result
+    
+    Examples:
+        # List connections on a storage account
+        azure_manage_pe_connection(action='list', resource_id='/subscriptions/.../storageAccounts/mysa')
+        
+        # Approve a pending connection
+        azure_manage_pe_connection(action='approve', connection_id='<id from list>')
+        
+        # Reject with custom reason
+        azure_manage_pe_connection(action='reject', connection_id='<id>', description='Not authorized')
+    """
+    return azure.manage_private_endpoint_connection(
+        action=action,
+        resource_id=resource_id,
+        connection_id=connection_id,
+        connection_name=connection_name,
+        description=description
+    )
+
+
+@mcp.tool()
+def azure_integrate_vnet(
+    resource_name: str = None,
+    resource_group: str = None,
+    resource_type: str = None,
+    subnet_id: str = None
+) -> str:
+    """
+    Integrates an Azure resource with a Virtual Network (VNet) via Regional VNet Integration or Network ACL rules.
+    
+    REGIONAL VNET INTEGRATION (for outbound connectivity from resource to VNet):
+    - functionapp: Azure Function App - MUST be in SAME REGION as VNet
+    - webapp: Azure App Service - MUST be in SAME REGION as VNet
+    
+    NETWORK ACL RULES (firewall rules to allow VNet subnet access):
+    - keyvault: Azure Key Vault
+    - storageaccount: Azure Storage Account
+    - cosmosdb: Azure Cosmos DB
+    - openai: Azure OpenAI Service
+    - cognitiveservices: Azure Cognitive Services
+    - sqlserver: Azure SQL Server
+    - eventhub: Azure Event Hub Namespace
+    - servicebus: Azure Service Bus Namespace
+    - containerregistry: Azure Container Registry (requires Premium SKU)
+    
+    NOT SUPPORTED (use Private Endpoints instead via azure_create_private_endpoint):
+    - Azure AI Search: Does NOT support VNet integration
+    - Azure Data Factory: Use Managed VNet or Private Endpoints
+    
+    NOTE: This is NOT Private Endpoint. For inbound private access to resources,
+    use azure_create_private_endpoint instead.
+    
+    Prerequisites:
+    - Function App/App Service: Must be in SAME REGION as VNet, Basic tier or higher
+    - Subnet should have appropriate service endpoint enabled (e.g., Microsoft.KeyVault, Microsoft.Storage)
+    - Container Registry: Must be Premium SKU for network rules
+    
+    Args:
+        resource_name: Name of the Azure resource
+        resource_group: Resource group containing the resource
+        resource_type: Type of resource to integrate (see supported types above)
+        subnet_id: Full resource ID of the subnet. Format:
+            /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Network/virtualNetworks/{vnet}/subnets/{subnet}
+    
+    Returns:
+        Integration status with configuration details
+    
+    Examples:
+        # Integrate Function App with VNet (same region required)
+        azure_integrate_vnet(
+            resource_name='my-function-app',
+            resource_group='my-rg',
+            resource_type='functionapp',
+            subnet_id='/subscriptions/xxx/resourceGroups/network-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/integration-subnet'
+        )
+        
+        # Add Storage Account network rule
+        azure_integrate_vnet(
+            resource_name='mystorageaccount',
+            resource_group='my-rg',
+            resource_type='storageaccount',
+            subnet_id='/subscriptions/xxx/resourceGroups/network-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/app-subnet'
+        )
+        
+        # Add Azure OpenAI network rule
+        azure_integrate_vnet(
+            resource_name='my-openai',
+            resource_group='my-rg',
+            resource_type='openai',
+            subnet_id='/subscriptions/xxx/resourceGroups/network-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/app-subnet'
+        )
+    """
+    return azure.integrate_vnet(
+        resource_name=resource_name,
+        resource_group=resource_group,
+        resource_type=resource_type,
+        subnet_id=subnet_id
+    )
+
+
+# ============================================================================
+# CONTAINER APPS TOOLS
+# ============================================================================
+
+@mcp.tool()
+def azure_create_container_apps_env(
+    resource_group: str = None,
+    environment_name: str = None,
+    subnet_id: str = None,
+    zone_redundant: bool = False,
+    workload_profile_type: str = "Consumption",
+    internal_only: bool = False
+) -> str:
+    """
+    Creates a Container Apps Environment with optional VNet integration.
+    
+    PREREQUISITES:
+    - Resource Group must exist (environment uses SAME REGION as RG automatically)
+    - For VNet mode: VNet and subnet must exist
+    
+    REQUIRED INFORMATION (ask user):
+    1. resource_group: Target resource group
+    2. environment_name: Name for the environment
+    
+    Args:
+        resource_group: Resource group name (environment deployed in same region)
+        environment_name: Name for the Container Apps Environment
+        subnet_id: Optional - Full subnet resource ID for VNet integration.
+            If omitted, uses Azure-managed networking. Format:
+            /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Network/virtualNetworks/{vnet}/subnets/{subnet}
+        zone_redundant: Enable zone redundancy (default: False)
+        workload_profile_type: Consumption, D4, D8, D16, D32, E4, E8, E16, E32 (default: Consumption)
+        internal_only: No public ingress - internal VNet access only (default: False)
+    
+    Returns:
+        Deployment result with environment details
+    
+    Examples:
+        # Basic environment without VNet (Azure-managed networking)
+        azure_create_container_apps_env(
+            resource_group='my-rg',
+            environment_name='my-aca-env'
+        )
+        
+        # Environment with VNet integration
+        azure_create_container_apps_env(
+            resource_group='my-rg',
+            environment_name='my-aca-env',
+            subnet_id='/subscriptions/xxx/resourceGroups/network-rg/providers/Microsoft.Network/virtualNetworks/my-vnet/subnets/aca-subnet'
+        )
+        
+        # Zone-redundant with dedicated workload profile
+        azure_create_container_apps_env(
+            resource_group='my-rg',
+            environment_name='my-aca-env',
+            subnet_id='/subscriptions/xxx/.../subnets/aca-subnet',
+            zone_redundant=True,
+            workload_profile_type='D4'
+        )
+    """
+    return azure.create_container_apps_environment(
+        resource_group=resource_group,
+        environment_name=environment_name,
+        subnet_id=subnet_id,
+        log_analytics_workspace_id=None,
+        zone_redundant=zone_redundant,
+        workload_profile_type=workload_profile_type,
+        internal_only=internal_only
+    )
+
+
+@mcp.tool()
+def azure_create_container_app(
+    resource_group: str = None,
+    container_app_name: str = None,
+    environment_name: str = None,
+    target_port: int = 80,
+    external_ingress: bool = True,
+    cpu: str = "0.5",
+    memory: str = "1Gi",
+    min_replicas: int = 0,
+    max_replicas: int = 10,
+    subnet_id: str = None
+) -> str:
+    """
+    Creates a Container App using the default quickstart image. Auto-creates environment if none exists.
+    
+    ENVIRONMENT AUTO-DETECTION & AUTO-CREATION:
+    - If environment_name not provided, tool finds existing environment in the RG
+    - If no environment exists, one is automatically created
+    - Use subnet_id to specify VNet integration when auto-creating environment
+    
+    Args:
+        resource_group: Resource group containing the Container Apps Environment
+        container_app_name: Name for the Container App (2-32 chars)
+        environment_name: Existing environment name (auto-detected/created if not provided)
+        target_port: Port the container listens on (default: 80)
+        external_ingress: Enable public access (default: True)
+        cpu: CPU cores - 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 4 (default: 0.5)
+        memory: Memory - 0.5Gi, 1Gi, 1.5Gi, 2Gi, 3Gi, 3.5Gi, 4Gi, 8Gi (default: 1Gi)
+        min_replicas: Minimum replicas, 0 for scale-to-zero (default: 0)
+        max_replicas: Maximum replicas (default: 10)
+        subnet_id: Optional - subnet for VNet integration when auto-creating environment
+    
+    Returns:
+        Deployment result with Container App details and FQDN
+    
+    Examples:
+        # Basic container app with default image
+        azure_create_container_app(
+            resource_group='my-rg',
+            container_app_name='hello-app'
+        )
+        
+        # Auto-create environment with VNet when none exists
+        azure_create_container_app(
+            resource_group='my-rg',
+            container_app_name='hello-app',
+            subnet_id='/subscriptions/xxx/.../subnets/aca-subnet'
+        )
+        
+        # With custom configuration
+        azure_create_container_app(
+            resource_group='my-rg',
+            container_app_name='my-worker',
+            target_port=8080,
+            cpu='1',
+            memory='2Gi',
+            min_replicas=1,
+            max_replicas=5
+        )
+    """
+    return azure.create_container_app(
+        resource_group=resource_group,
+        container_app_name=container_app_name,
+        environment_name=environment_name,
+        target_port=target_port,
+        external_ingress=external_ingress,
+        cpu=cpu,
+        memory=memory,
+        min_replicas=min_replicas,
+        max_replicas=max_replicas,
+        subnet_id=subnet_id
+    )
+
+
+# ============================================================================
+# DATA COLLECTION ENDPOINT & DATA COLLECTION RULE TOOLS
+# ============================================================================
+
+@mcp.tool()
+def azure_create_data_collection_endpoint(
+    resource_group: str = None,
+    dce_name: str = None,
+    public_network_access: str = "Enabled",
+    description: str = ""
+) -> str:
+    """
+    Creates a Data Collection Endpoint (DCE) for Azure Monitor.
+    
+    DCE is REQUIRED for:
+    - Logs Ingestion API (custom logs)
+    - Azure Monitor Private Link Scope (AMPLS)
+    - VNet-isolated data ingestion
+    
+    CREATE ORDER: DCE must be created BEFORE DCR.
+    
+    Args:
+        resource_group: Target resource group
+        dce_name: Name for the Data Collection Endpoint
+        public_network_access: Enabled (default), Disabled, or SecuredByPerimeter
+        description: Optional description
+    
+    Returns:
+        Deployment result with DCE ID, endpoints (logs, metrics, config)
+    
+    Example:
+        azure_create_data_collection_endpoint(
+            resource_group='monitoring-rg',
+            dce_name='my-dce'
+        )
+    """
+    return azure.create_data_collection_endpoint(
+        resource_group=resource_group,
+        dce_name=dce_name,
+        public_network_access=public_network_access,
+        description=description
+    )
+
+
+@mcp.tool()
+def azure_create_data_collection_rule(
+    resource_group: str = None,
+    dcr_name: str = None,
+    workspace_name: str = None,
+    dce_name: str = None,
+    custom_table_base_name: str = None,
+    table_columns: list = None,
+    create_table: bool = True,
+    workspace_resource_group: str = None,
+    dce_resource_group: str = None,
+    retention_in_days: int = 90,
+    total_retention_in_days: int = 180
+) -> str:
+    """
+    Creates a Data Collection Rule (DCR) with optional custom Log Analytics table.
+    
+    PREREQUISITES:
+    1. Log Analytics Workspace must exist
+    2. Data Collection Endpoint (DCE) must exist - create with azure_create_data_collection_endpoint first
+    
+    CREATE ORDER: DCE → DCR → (optional) attach via azure_attach_dce_to_dcr
+    
+    Args:
+        resource_group: Resource group for the DCR
+        dcr_name: Name for the Data Collection Rule
+        workspace_name: Existing Log Analytics workspace name
+        dce_name: Existing Data Collection Endpoint name
+        custom_table_base_name: Base name for custom table (e.g., 'MyLogs' creates 'MyLogs_CL')
+        table_columns: Column definitions as list. Default: [TimeGenerated, Message]
+            Format: [{"name": "ColumnName", "type": "string|dateTime|int|..."}]
+        create_table: Create the custom table (default: True)
+        workspace_resource_group: RG containing workspace (defaults to resource_group)
+        dce_resource_group: RG containing DCE (defaults to resource_group)
+        retention_in_days: Interactive retention days (default: 90)
+        total_retention_in_days: Total retention including archive (default: 180)
+    
+    Returns:
+        Deployment result with DCR ID, immutable ID, table name, stream name
+    
+    Example:
+        azure_create_data_collection_rule(
+            resource_group='monitoring-rg',
+            dcr_name='my-dcr',
+            workspace_name='my-law',
+            dce_name='my-dce',
+            custom_table_base_name='MyCustomLogs',
+            table_columns=[
+                {"name": "TimeGenerated", "type": "dateTime"},
+                {"name": "RunID", "type": "string"},
+                {"name": "Status", "type": "string"},
+                {"name": "Message", "type": "string"}
+            ]
+        )
+    """
+    return azure.create_data_collection_rule(
+        resource_group=resource_group,
+        dcr_name=dcr_name,
+        workspace_name=workspace_name,
+        dce_name=dce_name,
+        custom_table_base_name=custom_table_base_name,
+        table_columns=table_columns,
+        create_table=create_table,
+        workspace_resource_group=workspace_resource_group,
+        dce_resource_group=dce_resource_group,
+        retention_in_days=retention_in_days,
+        total_retention_in_days=total_retention_in_days
+    )
+
+
+@mcp.tool()
+def azure_attach_dce_to_dcr(
+    dcr_name: str = None,
+    dcr_resource_group: str = None,
+    dce_name: str = None,
+    dce_resource_group: str = None,
+    subscription_id: str = None
+) -> str:
+    """
+    Attaches a Data Collection Endpoint (DCE) to an existing Data Collection Rule (DCR).
+    
+    Use this to:
+    - Update an existing DCR to use a different DCE
+    - Attach a DCE to a DCR that was created without one
+    
+    Args:
+        dcr_name: Name of the Data Collection Rule
+        dcr_resource_group: Resource group containing the DCR
+        dce_name: Name of the Data Collection Endpoint to attach
+        dce_resource_group: RG containing DCE (defaults to dcr_resource_group)
+        subscription_id: Optional subscription ID
+    
+    Returns:
+        Result showing the attached DCE
+    
+    Example:
+        azure_attach_dce_to_dcr(
+            dcr_name='my-dcr',
+            dcr_resource_group='monitoring-rg',
+            dce_name='my-dce'
+        )
+    """
+    return azure.attach_dce_to_dcr(
+        dcr_name=dcr_name,
+        dcr_resource_group=dcr_resource_group,
+        dce_name=dce_name,
+        dce_resource_group=dce_resource_group,
+        subscription_id=subscription_id
+    )
 
 
 # ============================================================================
@@ -657,6 +1232,58 @@ def fabric_assign_role(
     return fabric.assign_role(workspace_identifier, role_name, principal_id, principal_type)
 
 
+@mcp.tool()
+def fabric_create_deployment_pipeline(
+    pipeline_name: str,
+    pipeline_type: str,
+    workspace_names: str,
+    description: str = ""
+) -> str:
+    """
+    Creates Microsoft Fabric deployment pipeline(s) and assigns workspaces.
+    
+    Two options:
+    - "Dev-to-Prod": 1 pipeline (Development -> Production), 2 workspaces
+    - "Dev-to-UAT-to-Prod": 2 pipelines (Dev->UAT + UAT->Prod), 3 workspaces
+    
+    Args:
+        pipeline_name: Name for the pipeline (prefix for Dev-to-UAT-to-Prod)
+        pipeline_type: "Dev-to-Prod" or "Dev-to-UAT-to-Prod"
+        workspace_names: Comma-separated workspace names matching the type.
+            Dev-to-Prod: "DevWS,ProdWS" (2 names)
+            Dev-to-UAT-to-Prod: "DevWS,UATWS,ProdWS" (3 names)
+        description: Optional description for the pipeline(s)
+    
+    Returns:
+        Pipeline creation and workspace assignment results
+    """
+    return fabric.create_deployment_pipeline(pipeline_name, pipeline_type, workspace_names, description)
+
+
+@mcp.tool()
+def fabric_add_deployment_pipeline_role(
+    pipeline_id: str,
+    user_email: str,
+    role: str = "Admin",
+    principal_type: str = "User"
+) -> str:
+    """
+    Adds a role assignment to a deployment pipeline.
+    
+    Accepts user email and automatically resolves it to the Entra ID Object ID.
+    
+    Args:
+        pipeline_id: The deployment pipeline ID (GUID)
+        user_email: The user's email address (auto-resolved to Object ID)
+        role: Role to assign - currently only "Admin" is supported
+        principal_type: Type of principal - "User", "Group", "ServicePrincipal", or "ServicePrincipalProfile"
+    
+    Returns:
+        JSON with role assignment result
+    """
+    return fabric.add_deployment_pipeline_role(pipeline_id, user_email, role, principal_type)
+
+
 # ============================================================================
 # AZURE DEVOPS TOOLS - Projects & Repos
 # ============================================================================
@@ -767,8 +1394,8 @@ def ado_deploy_pipeline_yaml(organization: str = None, project_name: str = None,
       2. Add entry to PIPELINE_TEMPLATE_MAP: "template-key": "templates/YourTemplate.yml"
     
     Available Templates:
-    - credscan: credscan_Pipeline.yml (standard non-production)
-    - credscan-1es: credscan_1ES_Pipeline.yml (production/1ES)
+    - codeql: CodeQL_Pipeline.yml (standard non-production)
+    - codeql-1es: CodeQL_1ES_Pipeline.yml (production/1ES)
     
     Args:
         organization: Azure DevOps organization URL
@@ -814,7 +1441,7 @@ def ado_create_pipeline(organization: str = None, project_name: str = None,
         repo_name: Existing repository name
         pipeline_name: Name for pipeline (keywords '1ES'/'prod' select production template)
         branch: Branch containing YAML (defaults to 'main')
-        pipeline_type: Optional explicit template type from PIPELINE_TEMPLATE_MAP (e.g., 'credscan', 'credscan-1es')
+        pipeline_type: Optional explicit template type from PIPELINE_TEMPLATE_MAP (e.g., 'codeql', 'codeql-1es')
         yaml_path: Optional custom YAML file path in repository (e.g., 'pipelines/sourcebranchvalidation.yml')
     
     Returns:
@@ -850,7 +1477,7 @@ def ado_assign_role(
         organization: Azure DevOps organization URL or name
         project_name: Name of the Azure DevOps project
         role_name: Name of the security group/role to assign
-        principal_id: Object ID (GUID) of the user, group, or service principal from Azure AD/Entra ID
+        principal_id: Object ID (GUID) of the user, group, service principal, or managed identity from Azure AD/Entra ID
     
     Returns:
         Role assignment result with status and details

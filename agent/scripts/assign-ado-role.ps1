@@ -279,10 +279,10 @@ Write-Host "Found group: $groupName" -ForegroundColor Green
 # Step 3: Resolve the principal (user/SPN) from Azure AD Object ID
 Write-Host "Resolving principal ID '$PrincipalId'..." -ForegroundColor Yellow
 
-# First, try to find if user already exists in Azure DevOps
+# First, try to find if user/group already exists in Azure DevOps
 $userDescriptor = $null
 
-# Try to look up by origin ID (Azure AD Object ID)
+# Try to look up by origin ID (Azure AD Object ID) - check users first
 $lookupUrl = "$vsspsUrl/_apis/graph/users?api-version=7.1-preview.1"
 try {
     $usersResponse = Invoke-RestMethod -Uri $lookupUrl -Headers $headers -Method Get
@@ -294,12 +294,29 @@ try {
     }
 }
 catch {
-    # User lookup failed, will try to add directly
+    # User lookup failed, will try groups
 }
 
-# If user doesn't exist in ADO, we need to add them first
+# If not found as user, check if it's an existing group
 if (-not $userDescriptor) {
-    Write-Host "User not found in Azure DevOps, attempting to add from Azure AD..." -ForegroundColor Yellow
+    $groupLookupUrl = "$vsspsUrl/_apis/graph/groups?api-version=7.1-preview.1"
+    try {
+        $aadGroupsResponse = Invoke-RestMethod -Uri $groupLookupUrl -Headers $headers -Method Get
+        $existingGroup = $aadGroupsResponse.value | Where-Object { $_.originId -eq $PrincipalId }
+        
+        if ($existingGroup) {
+            $userDescriptor = $existingGroup.descriptor
+            Write-Host "Found existing Azure AD group in Azure DevOps" -ForegroundColor Green
+        }
+    }
+    catch {
+        # Group lookup failed, will try to add directly
+    }
+}
+
+# If principal doesn't exist in ADO, we need to add them first
+if (-not $userDescriptor) {
+    Write-Host "Principal not found in Azure DevOps, attempting to add from Azure AD..." -ForegroundColor Yellow
     
     # Get the Azure AD storage key for the organization
     $storageKeyUrl = "$vsspsUrl/_apis/graph/storagekeys/Microsoft.IdentityModel.Claims.ClaimsIdentity?api-version=7.1-preview.1"
@@ -333,20 +350,35 @@ if (-not $userDescriptor) {
             Write-Host "Added service principal to Azure DevOps organization" -ForegroundColor Green
         }
         catch {
-            Write-Host ""
-            Write-Host "==========================================" -ForegroundColor Red
-            Write-Host "Principal Resolution Failed" -ForegroundColor Red
-            Write-Host "==========================================" -ForegroundColor Red
-            Write-Host "Could not resolve or add principal '$PrincipalId' to Azure DevOps" -ForegroundColor Yellow
-            Write-Host ""
-            Write-Host "Possible causes:" -ForegroundColor Cyan
-            Write-Host "  - Principal ID (Object ID) is incorrect" -ForegroundColor Gray
-            Write-Host "  - Principal does not exist in Azure AD" -ForegroundColor Gray
-            Write-Host "  - Organization is not connected to Azure AD" -ForegroundColor Gray
-            Write-Host "  - Insufficient permissions to add users" -ForegroundColor Gray
-            Write-Host ""
-            Write-Host "Error: $errorMessage" -ForegroundColor Red
-            exit 1
+            # Try adding as an Azure AD group
+            Write-Host "Trying to add as Azure AD group..." -ForegroundColor Yellow
+            
+            try {
+                $createGroupUrl = "$vsspsUrl/_apis/graph/groups?api-version=7.1-preview.1"
+                $createGroupBody = @{
+                    originId = $PrincipalId
+                } | ConvertTo-Json
+                
+                $newGroup = Invoke-RestMethod -Uri $createGroupUrl -Headers $headers -Method Post -Body $createGroupBody
+                $userDescriptor = $newGroup.descriptor
+                Write-Host "Added Azure AD group to Azure DevOps organization" -ForegroundColor Green
+            }
+            catch {
+                Write-Host ""
+                Write-Host "==========================================" -ForegroundColor Red
+                Write-Host "Principal Resolution Failed" -ForegroundColor Red
+                Write-Host "==========================================" -ForegroundColor Red
+                Write-Host "Could not resolve or add principal '$PrincipalId' to Azure DevOps" -ForegroundColor Yellow
+                Write-Host ""
+                Write-Host "Possible causes:" -ForegroundColor Cyan
+                Write-Host "  - Principal ID (Object ID) is incorrect" -ForegroundColor Gray
+                Write-Host "  - Principal does not exist in Azure AD" -ForegroundColor Gray
+                Write-Host "  - Organization is not connected to Azure AD" -ForegroundColor Gray
+                Write-Host "  - Insufficient permissions to add users/groups" -ForegroundColor Gray
+                Write-Host ""
+                Write-Host "Error: $errorMessage" -ForegroundColor Red
+                exit 1
+            }
         }
     }
 }

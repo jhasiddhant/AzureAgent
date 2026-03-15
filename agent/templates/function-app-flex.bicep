@@ -6,7 +6,7 @@ targetScope = 'resourceGroup'
 // This template creates a Function App with Flex Consumption hosting plan.
 // Requirements:
 // - Existing ADLS Gen2 Storage Account (for function content and deployment)
-// - Existing User Assigned Managed Identity (UAMI) with Storage Blob Data Owner
+// - Existing User Assigned Managed Identity (UAMI) with Storage Blob Data Contributor
 // Configuration:
 // - System Assigned MI: Enabled but NOT used
 // - UAMI: Used for deployment and runtime storage access
@@ -61,6 +61,39 @@ param httpPerInstanceConcurrency int = 16
 // Reference existing Storage Account (ADLS Gen2)
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
+}
+
+// Reference blob services on the storage account
+resource blobServices 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' existing = {
+  parent: storageAccount
+  name: 'default'
+}
+
+// ============================================================================
+// REQUIRED BLOB CONTAINERS
+// ============================================================================
+// These containers must exist before the Function App starts.
+// Creating them in the template ensures they are available even when NSP
+// restricts runtime auto-creation.
+
+resource containerWebjobsHosts 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobServices
+  name: 'azure-webjobs-hosts'
+}
+
+resource containerWebjobsSecrets 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobServices
+  name: 'azure-webjobs-secrets'
+}
+
+resource containerDeployments 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobServices
+  name: 'deployments'
+}
+
+resource containerScmReleases 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobServices
+  name: 'scm-releases'
 }
 
 // Reference existing User Assigned Managed Identity
@@ -193,13 +226,11 @@ output postDeploymentInstructions string = '''
 POST-DEPLOYMENT STEPS REQUIRED
 ================================================================================
 
-1. CREATE REQUIRED CONTAINERS IN ADLS:
-   Run the following Azure CLI commands to create required blob containers:
-   
-   az storage container create --name "azure-webjobs-hosts" --account-name <storageAccountName> --auth-mode login
-   az storage container create --name "azure-webjobs-secrets" --account-name <storageAccountName> --auth-mode login
-   az storage container create --name "deployments" --account-name <storageAccountName> --auth-mode login
-   az storage container create --name "scm-releases" --account-name <storageAccountName> --auth-mode login
+1. BLOB CONTAINERS (auto-created by this template):
+   - azure-webjobs-hosts
+   - azure-webjobs-secrets
+   - deployments
+   - scm-releases
 
 2. ROLE ASSIGNMENTS REQUIRED (Request Admin):
    The following roles must be assigned on the ADLS Storage Account:

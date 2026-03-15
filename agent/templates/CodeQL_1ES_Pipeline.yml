@@ -1,0 +1,62 @@
+parameters:
+  - name: poolName
+    displayName: 'Pool Name'
+    type: string
+  
+  - name: poolImage
+    displayName: 'Pool Image'
+    type: string
+  
+  - name: poolOs
+    displayName: 'Pool OS'
+    type: string
+
+trigger:
+- main
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+variables:
+  Codeql.PublishDatabaseLog: true
+  Codeql.Cadence: 0
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    pool:
+      name: ${{ parameters.poolName }}
+      image: ${{ parameters.poolImage }}
+      os: ${{ parameters.poolOs }}
+
+    sdl:
+      sourceAnalysisPool:
+        name: ${{ parameters.poolName }}
+        image: ${{ parameters.poolImage }}
+        os: ${{ parameters.poolOs }}
+
+    settings:
+      networkIsolationPolicy: Permissive, CFSClean
+
+    stages:
+    - stage: Build
+      displayName: Build
+      jobs:
+      - job: Build
+        displayName: Build
+        timeoutInMinutes: 180
+
+        templateContext:
+          outputs:
+          - output: pipelineArtifact
+            targetPath: '$(Build.ArtifactStagingDirectory)'
+            artifactName: 'fabric_deployment_artifacts'
+
+        steps:
+          - script: echo "Build completed - SDL tasks handled by 1ES template"
+            displayName: 'Build Placeholder'
+

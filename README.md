@@ -2,76 +2,148 @@
 
 ## Description
 
-**Azure Platform Agent** is a Model Context Protocol (MCP) server that enables secure, compliant Azure resource deployment directly from VS Code using GitHub Copilot Chat. This agent helps you create compliant Azure resources with automatic security compliance orchestration.
+**Azure Platform Agent** is a Model Context Protocol (MCP) server that enables secure, compliant Azure resource deployment directly from VS Code using GitHub Copilot Chat. It provides a unified natural-language interface for managing Azure resources, Azure DevOps, and Microsoft Fabric — with built-in compliance orchestration, security best practices, and infrastructure-as-code (Bicep) templates.
 
-### Capabilities
+---
 
-#### Azure Authentication & Account
-1. **Azure Login** - Login to Azure with browser authentication
-2. **List Subscriptions** - List accessible Azure subscriptions
-3. **Set Subscription** - Set active subscription context
-4. **Get Current User** - Get current subscription, tenant, and user info
+## Architecture
 
-#### Azure Resource Management
-5. **Create Resource Groups** - Create Azure resource groups with project tagging
-6. **Create Compliant Resources** - Deploy Azure resources with automatic compliance features:
-   - Storage Accounts (ADLS Gen2)
-   - Key Vaults
-   - Azure OpenAI
-   - AI Search
-   - AI Content Safety
-   - AI Document Intelligence
-   - AI Language Service
-   - Cosmos DB
-   - Log Analytics Workspaces
-   - User Assigned Managed Identity (UAMI)
-   - Network Security Perimeter (NSP)
-   - Fabric Capacity
-   - Container Registry (ACR)
-   - Function App (Flex Consumption)
-   - Public IP
-   - Azure Data Factory
-   - Azure Synapse Analytics
-   - Network Security Group (NSG)
-   - Virtual Network (VNet)
-   - Subnet
-   - Private Endpoint
-   - Logic App (Consumption)
-7. **Get Resource Info** - Query resources, resource groups, and properties
-8. **Get Activity Log** - Retrieve activity logs for auditing
-9. **Update Tags** - Add, update, or replace resource tags
+![Azure Platform Agent Architecture](docs/architecture.png)
 
-#### Azure Security & Networking
-10. **Activate PIM Roles** - Activate eligible Privileged Identity Management roles
-11. **Assign RBAC Roles** - Assign RBAC roles to SPNs/Managed Identities
-12. **List Roles** - List active or eligible PIM roles
+---
 
-#### Azure DevOps Integration
-13. **List DevOps Projects** - View all projects in an organization
-14. **List DevOps Repositories** - View all repositories in a project
-15. **Create DevOps Projects** - Set up new Azure DevOps projects
-16. **Create DevOps Repositories** - Add new Git repositories to existing projects
-17. **Create DevOps Branches** - Create branches in repositories from base branches
-18. **Create DevOps Pipelines** - Create and configure Azure Pipelines from YAML files
-19. **Deploy Pipeline YAML** - Deploy pipeline templates (credscan, 1ES) to repositories
-20. **Deploy Custom YAML** - Deploy custom YAML content directly to repositories
-21. **Assign ADO Roles** - Assign security group roles in Azure DevOps
+## Tools Available
 
-#### Microsoft Fabric Integration
-22. **Create Fabric Workspaces** - Create workspaces in Fabric capacities
-23. **Assign Fabric Roles** - Assign workspace roles (Admin/Contributor/Member/Viewer)
-24. **List Fabric Permissions** - View workspace permissions and access levels
-25. **Attach Workspace to Git** - Connect Fabric workspaces to Azure DevOps repositories
-26. **Create Managed Private Endpoint** - Create managed private endpoint for secure connectivity
-27. **List Managed Private Endpoints** - List managed private endpoints in workspace
+### General
 
-#### Agent Help
-28. **Show Agent Instructions** - Display complete agent documentation and usage guide 
+| # | Tool | Description |
+|---|------|-------------|
+| 1 | **Show Agent Instructions** | Display complete agent documentation and usage guide. |
+
+### Azure — Authentication & Account
+
+| # | Tool | Description |
+|---|------|-------------|
+| 2 | **Azure Login** | Login to Azure with browser authentication. Handles single/multiple subscriptions automatically. |
+| 3 | **List Subscriptions** | List all accessible Azure subscriptions with name, ID, state, and default flag. |
+| 4 | **Set Subscription** | Set the active subscription context by ID or name. |
+| 5 | **Get Current User** | Get current subscription, tenant, and user email. |
+
+### Azure — Resource Management
+
+| # | Tool | Description |
+|---|------|-------------|
+| 6 | **Create Resource Group** | Create Azure resource groups with project tagging. |
+| 7 | **Create Resource** | Deploy Azure resources via Bicep templates with automatic compliance. Supported resources: |
+| | | — Storage Account (ADLS Gen2) |
+| | | — Key Vault |
+| | | — Azure OpenAI |
+| | | — AI Search |
+| | | — AI Content Safety |
+| | | — AI Document Intelligence |
+| | | — AI Language Service |
+| | | — AI Foundry (AI Hub) |
+| | | — Cosmos DB |
+| | | — Log Analytics Workspace |
+| | | — User Assigned Managed Identity (UAMI) |
+| | | — Network Security Perimeter (NSP) |
+| | | — Fabric Capacity |
+| | | — Container Registry (ACR) |
+| | | — Function App (Flex Consumption) |
+| | | — Function App (App Service Plan) |
+| | | — App Service (Web App) |
+| | | — Public IP |
+| | | — Azure Data Factory |
+| | | — Azure Synapse Analytics |
+| | | — Network Security Group (NSG) |
+| | | — Virtual Network (VNet) |
+| | | — Subnet |
+| | | — Private Endpoint |
+| | | — Private DNS Zone |
+| | | — DNS Zone VNet Link |
+| | | — Logic App (Consumption) |
+| | | — Redis Cache |
+| | | — SQL Server |
+| | | — SQL Database |
+| | | — Application Insights |
+| | | — Container Apps Environment |
+| | | — Container App |
+| | | — Data Collection Endpoint (DCE) |
+| | | — Data Collection Rule (DCR) |
+| | | — API Management (APIM) |
+| 8 | **Get Bicep Requirements** | View required/optional parameters for any Bicep resource template before deployment. |
+| 9 | **Get Resource Info** | Unified query tool — list resource groups, list/find resources, get resource details, get managed identity info, run custom KQL (Resource Graph) queries, or run raw CLI commands. |
+| 10 | **Check Resource** | Check if a specific resource type exists in a resource group. |
+| 11 | **Get Activity Log** | Retrieve activity logs for auditing and troubleshooting (up to 90 days). |
+| 12 | **Update Tags** | Add, update, or replace tags on any Azure resource. |
+
+### Azure — Security & Identity
+
+| # | Tool | Description |
+|---|------|-------------|
+| 13 | **List Roles** | List active RBAC assignments or eligible PIM roles for the current user. |
+| 14 | **Activate PIM Roles** | Activate eligible PIM roles — single role at a specific scope or all eligible roles at once. |
+| 15 | **Assign PIM Eligible Role** | Create an eligible (not active) PIM role assignment for a user, group, or service principal. |
+| 16 | **Assign RBAC Roles** | Assign RBAC roles to Service Principals or Managed Identities (supports bulk assignments). |
+
+### Azure — Networking & Compliance
+
+| # | Tool | Description |
+|---|------|-------------|
+| 17 | **Attach to NSP** | Attach a resource to a Network Security Perimeter (auto-creates NSP if needed). |
+| 18 | **Attach Diagnostic Settings** | Configure Log Analytics diagnostic settings on a resource (auto-creates workspace if needed). |
+| 19 | **Attach Application Insights** | Attach Application Insights to a Function App or App Service with connection string and instrumentation key. |
+| 20 | **Create Private Endpoint** | Create a Private Endpoint with automatic DNS zone configuration and VNet link management. |
+| 21 | **Manage PE Connections** | List, approve, or reject private endpoint connections on any Azure resource. |
+| 22 | **Integrate VNet** | Regional VNet integration for App Service/Function App, or network ACL rules for Key Vault, Storage, Cosmos DB, OpenAI, SQL, and more. |
+
+### Azure — Container Apps
+
+| # | Tool | Description |
+|---|------|-------------|
+| 23 | **Create Container Apps Environment** | Create a Container Apps Environment with optional VNet integration and workload profiles. |
+| 24 | **Create Container App** | Create a Container App with auto-detection/creation of environment, configurable scaling, CPU, and memory. |
+
+### Azure — Monitoring (DCE/DCR)
+
+| # | Tool | Description |
+|---|------|-------------|
+| 25 | **Create Data Collection Endpoint** | Create a DCE for Azure Monitor (required for Logs Ingestion API and AMPLS). |
+| 26 | **Create Data Collection Rule** | Create a DCR with optional custom Log Analytics table and column definitions. |
+| 27 | **Attach DCE to DCR** | Attach or update a Data Collection Endpoint on an existing Data Collection Rule. |
+
+### Azure DevOps
+
+| # | Tool | Description |
+|---|------|-------------|
+| 28 | **List Projects** | List all projects in an Azure DevOps organization. |
+| 29 | **List Repos** | List all repositories in a project. |
+| 30 | **Create Project** | Create a new Azure DevOps project with an initial repository. |
+| 31 | **Create Repo** | Add a new Git repository to an existing project. |
+| 32 | **Create Branch** | Create a branch from a base branch in a repository. |
+| 33 | **Deploy Pipeline YAML** | Deploy pipeline YAML templates (CodeQL, 1ES) or custom YAML to a repository. |
+| 34 | **Deploy Custom YAML** | Deploy custom YAML content directly to a repository file. |
+| 35 | **Create Pipeline** | Create an Azure Pipeline from a YAML file already in the repository. |
+| 36 | **Assign ADO Role** | Assign a security group role (Project Admin, Contributor, Reader, etc.) to a principal. |
+
+### Microsoft Fabric
+
+| # | Tool | Description |
+|---|------|-------------|
+| 37 | **List Fabric Permissions** | View workspace permissions and access levels for the current user. |
+| 38 | **Create Workspace** | Create a Fabric workspace in a specified capacity. |
+| 39 | **Assign Fabric Role** | Assign workspace roles (Admin, Contributor, Member, Viewer) to users, groups, or service principals. |
+| 40 | **Attach Workspace to Git** | Connect a Fabric workspace to an Azure DevOps Git repository for version control. |
+| 41 | **Create Deployment Pipeline** | Create Fabric deployment pipelines (Dev→Prod or Dev→UAT→Prod) and assign workspaces. |
+| 42 | **Add Deployment Pipeline Role** | Add a role assignment to a Fabric deployment pipeline (auto-resolves user email to Object ID). |
+| 43 | **Create Managed Private Endpoint** | Create a managed private endpoint from Fabric to Azure resources for secure connectivity. |
+| 44 | **List Managed Private Endpoints** | List all managed private endpoints in a Fabric workspace with approval status. |
+
 ---
 
 ## Prerequisites
 
-Before installing the Azure Platform Agent, ensure you have the following installed:
+Before installing the AzForge Agent, ensure you have the following installed:
 
 ### Required Software
 
@@ -93,7 +165,7 @@ Before installing the Azure Platform Agent, ensure you have the following instal
 
 - Access to Azure DevOps organization
 - Project Collection Admin permissions for creating projects
-- Project Admin permissions for creating repositories, and pipelines
+- Project Admin permissions for creating repositories and pipelines
 - Azure CLI authenticated (`az login` or `az login --allow-no-subscriptions`)
 
 ### Fabric Requirements
@@ -101,7 +173,7 @@ Before installing the Azure Platform Agent, ensure you have the following instal
 - Access to Microsoft Fabric workspaces
 - Appropriate permissions to create and manage workspaces
 - Fabric capacity available for workspace creation
-- ADO Available for GIT integration
+- ADO available for Git integration
 - Azure CLI authenticated (`az login` or `az login --allow-no-subscriptions`)
 
 ---
@@ -163,106 +235,6 @@ You should see the available actions menu confirming successful installation.
 
 ---
 
-## Usage Examples
-
-### Azure Resource Management
-
-#### List Your Azure Permissions
-```
-list my azure permissions
-```
-
-#### List Azure Resources
-```
-list resources in resource-group-name
-```
-
-#### Create a Resource Group
-```
-create resource group named my-rg in eastus for project MyProject
-```
-
-#### Create a Storage Account
-```
-create storage account
-```
-
-#### Create a Key Vault
-```
-create key vault
-```
-
-The agent will interactively prompt you for required parameters and automatically:
-- Deploy compliant resources
-- Configure Log Analytics diagnostic settings
-- Apply security best practices and compliance controls
-
-### Azure DevOps Operations
-
-#### Create a DevOps Project
-```
-create azure devops project named MyProject with repo MainRepo in organization myorg
-```
-
-#### Create a DevOps Repository
-```
-create devops repository named MyRepo in project MyProject
-```
-
-#### Create a Branch
-```
-create branch feature/new-feature from main in MyRepo
-```
-
-#### Deploy Pipeline YAML
-```
-deploy credscan pipeline yaml to MyRepo in pipelines folder
-```
-
-#### Deploy Custom YAML
-```
-deploy custom yaml content to MyRepo
-```
-
-#### Create a Pipeline
-```
-create pipeline named MyPipeline-1ES for MyRepo
-```
-
-#### Create Pipeline with Custom YAML Path
-```
-create pipeline named "Source Branch Validation" for MyRepo with yaml path pipelines/sourcebranchvalidation.yml
-```
-
-#### List DevOps Projects
-```
-list all devops projects in organization myorg
-```
-
-#### List DevOps Repositories
-```
-list all repos in project MyProject
-```
-
-### Microsoft Fabric Operations
-
-#### List Fabric Permissions
-```
-list my fabric permissions
-```
-
-#### Create a Fabric Workspace
-```
-create fabric workspace named MyWorkspace in capacity /subscriptions/.../capacities/mycapacity
-```
-
-#### Attach Workspace to Git
-```
-attach fabric workspace to azure devops git
-```
-
----
-
 ### Azure CLI Authentication
 
 Ensure you're logged into Azure CLI:
@@ -277,8 +249,154 @@ This agent requires PowerShell Core (pwsh), not Windows PowerShell. Verify:
 ```bash
 pwsh --version
 ```
+
 ---
 
-## 📄 License
+## Usage Examples
 
-MIT License - see LICENSE file for details
+### Azure
+
+#### Authentication
+```
+login to azure
+```
+```
+list my subscriptions
+```
+```
+set subscription to <subscription-id>
+```
+
+#### Resource Management
+```
+create resource group named my-rg in eastus for project MyProject
+```
+```
+create storage account in my-rg
+```
+```
+create key vault in my-rg
+```
+```
+create function app in my-rg
+```
+```
+create container app in my-rg
+```
+```
+create application insights in my-rg
+```
+```
+list resources in my-rg
+```
+```
+get info for resource my-storage in my-rg
+```
+```
+get activity log for my-rg last 7 days
+```
+```
+update tags on my-storage: environment=dev,team=platform
+```
+
+#### Security & Identity
+```
+list my active roles
+```
+```
+list my eligible PIM roles
+```
+```
+activate all my PIM roles with justification "sprint deployment"
+```
+```
+assign Storage Blob Data Contributor role to managed identity <object-id> on resource group my-rg
+```
+
+#### Networking & Compliance
+```
+attach my-storage to network security perimeter in my-rg
+```
+```
+attach diagnostic settings to my-storage in my-rg
+```
+```
+attach application insights my-appinsights to webapp my-webapp
+```
+```
+create private endpoint for my-storage blob in my-subnet
+```
+```
+integrate my-function-app with vnet my-vnet subnet my-subnet
+```
+
+#### Monitoring (DCE/DCR)
+```
+create data collection endpoint my-dce in my-rg
+```
+```
+create data collection rule my-dcr with custom table MyLogs in my-rg
+```
+```
+attach dce my-dce to dcr my-dcr
+```
+
+### Azure DevOps
+
+```
+list all devops projects in organization myorg
+```
+```
+list all repos in project MyProject
+```
+```
+create azure devops project named MyProject with repo MainRepo in organization myorg
+```
+```
+create devops repository named MyRepo in project MyProject
+```
+```
+create branch feature/new-feature from main in MyRepo
+```
+```
+deploy codeql pipeline yaml to MyRepo in pipelines folder
+```
+```
+deploy custom yaml content to MyRepo
+```
+```
+create pipeline named MyPipeline-1ES for MyRepo
+```
+```
+create pipeline named "Source Branch Validation" for MyRepo with yaml path pipelines/sourcebranchvalidation.yml
+```
+```
+assign Project Administrators role to <principal-id> in project MyProject
+```
+
+### Microsoft Fabric
+
+```
+list my fabric permissions
+```
+```
+create fabric workspace named MyWorkspace in capacity /subscriptions/.../capacities/mycapacity
+```
+```
+assign Admin role to <principal-id> in fabric workspace MyWorkspace
+```
+```
+attach fabric workspace to azure devops git repo MyRepo in project MyProject
+```
+```
+create deployment pipeline Dev-to-Prod with workspaces DevWS,ProdWS
+```
+```
+add admin role to user@example.com on deployment pipeline <pipeline-id>
+```
+```
+create managed private endpoint for storage blob in fabric workspace <workspace-id>
+```
+```
+list managed private endpoints in fabric workspace <workspace-id>
+```

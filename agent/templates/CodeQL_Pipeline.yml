@@ -3,23 +3,16 @@ trigger:
 
 steps:
 
+- task: CodeQL3000Init@0
 - task: CredScan@3
   inputs:
     outputFormat: 'pre'
-
+    
 - task: 1ESSecretScanning@1
   inputs:
     Action: 'analyze'
     Rules: 'GetClean'
     Target: '$(Build.SourcesDirectory)\*'
-
-- task: AntiMalware@4
-  inputs:
-    InputType: 'Basic'
-    ScanType: 'QuickScan'
-    TreatSignatureUpdateFailureAs: 'Warning'
-    SignatureFreshness: 'UpToDate'
-    TreatStaleSignatureAs: 'Error'
 
 - task: ManifestGeneratorTask@0
   displayName: 'Generation Task'
@@ -40,3 +33,4 @@ steps:
     targetsBandit: '$(Build.SourcesDirectory)'
     targetsBanditRecursive: true
     ruleset: 'guardian'
+- task: CodeQL3000Finalize@0

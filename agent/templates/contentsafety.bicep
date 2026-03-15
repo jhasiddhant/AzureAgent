@@ -24,7 +24,9 @@ param disablePublicNetworkAccess bool = true
 param restrictOutboundNetworkAccess bool = true
 
 @description('Allowed FQDNs for outbound when restriction is enabled.')
-param allowedFqdnList array = []
+param allowedFqdnList array = [
+  'microsoft.com'
+]
 
 // Azure AI Content Safety account
 resource contentSafety 'Microsoft.CognitiveServices/accounts@2023-05-01' = {

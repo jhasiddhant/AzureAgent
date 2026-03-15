@@ -25,7 +25,9 @@ param restrictOutboundNetworkAccess bool = true
 
 @description('Allowed FQDNs for outbound when restriction is enabled.')
 // disable-next-line no-hardcoded-env-urls
-param allowedFqdnList array = []
+param allowedFqdnList array = [
+  'microsoft.com'
+]
 
 // Azure OpenAI account
 resource openAi 'Microsoft.CognitiveServices/accounts@2023-05-01' = {

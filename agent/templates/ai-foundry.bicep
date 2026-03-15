@@ -6,7 +6,9 @@ param aiProjectName string = ''
 param disableLocalAuth bool = true
 param disablePublicNetworkAccess bool = true
 param restrictOutboundNetworkAccess bool = true
-param allowedFqdnList array = []
+param allowedFqdnList array = [
+  'microsoft.com'
+]
 param allowProjectManagement bool = true
 param customSubDomainName string = ''
 param applyNetworkAcls bool = false
