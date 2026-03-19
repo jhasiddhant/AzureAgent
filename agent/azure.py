@@ -6,6 +6,7 @@ import os
 import re
 import json
 import shutil
+import subprocess
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Tuple
 
@@ -1591,7 +1592,7 @@ def deploy_bicep_resource(resource_group: str, resource_type: str, parameters: d
 
 def _check_dns_zone_exists(resource_group: str, dns_zone_name: str) -> tuple:
     """
-    Check if a Private DNS Zone exists and return its details.
+    Check if a Private DNS Zone exists in the specified resource group.
     
     Returns:
         (exists: bool, dns_zone_id: str, error: str)
@@ -1608,7 +1609,7 @@ def _check_dns_zone_exists(resource_group: str, dns_zone_name: str) -> tuple:
     result = run_command(cmd)
     
     # Check for "not found" errors - this means zone doesn't exist
-    if "ResourceNotFound" in result or "was not found" in result.lower():
+    if "ResourceNotFound" in result or "was not found" in result.lower() or "could not be found" in result.lower():
         return False, "", ""
     
     # Check for other errors (permissions, network, etc.)
@@ -1617,9 +1618,13 @@ def _check_dns_zone_exists(resource_group: str, dns_zone_name: str) -> tuple:
     
     try:
         data = json.loads(result)
-        return True, data.get("id", ""), ""
-    except (json.JSONDecodeError, KeyError):
-        return False, "", ""
+        dns_id = data.get("id", "")
+        if dns_id:
+            return True, dns_id, ""
+        else:
+            return False, "", "DNS zone found but missing ID"
+    except (json.JSONDecodeError, KeyError) as e:
+        return False, "", f"Failed to parse DNS zone response: {str(e)}"
 
 
 def _check_vnet_link_exists(resource_group: str, dns_zone_name: str, vnet_id: str) -> tuple:
@@ -1637,19 +1642,25 @@ def _check_vnet_link_exists(resource_group: str, dns_zone_name: str, vnet_id: st
     ]
     result = run_command(cmd)
     
+    # Check for not found errors (DNS zone doesn't exist)
+    if "ResourceNotFound" in result or "was not found" in result.lower() or "could not be found" in result.lower():
+        return False, "", "DNS zone not found"
+    
     # Check for errors
     if "ERROR" in result or "error" in result.lower():
         return False, "", f"Error checking VNet links: {result}"
     
     try:
         links = json.loads(result)
+        if not isinstance(links, list):
+            return False, "", "Unexpected response format for VNet links"
         for link in links:
             linked_vnet = link.get("virtualNetwork", {}).get("id", "")
             if linked_vnet.lower() == vnet_id.lower():
                 return True, link.get("name", ""), ""
         return False, "", ""
-    except (json.JSONDecodeError, KeyError):
-        return False, "", ""
+    except (json.JSONDecodeError, KeyError) as e:
+        return False, "", f"Failed to parse VNet links response: {str(e)}"
 
 
 def _extract_vnet_id_from_subnet(subnet_id: str) -> str:
@@ -1745,7 +1756,7 @@ Please use a valid group_id from the above list."""
     output_lines.append("=" * 70)
     output_lines.append("")
     
-    # Check if DNS zone already exists
+    # Check if DNS zone already exists in the same resource group
     dns_exists, existing_dns_id, dns_check_error = _check_dns_zone_exists(resource_group, dns_zone_name)
     
     if dns_check_error:

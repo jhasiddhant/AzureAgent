@@ -142,6 +142,7 @@ Action: Reply politely and show EXACT menu below (do not alter wording or number
 >     * Azure AI Search
 >     * Azure AI Foundry
 >     * Cosmos DB
+>     * Document DB (MongoDB Cluster)
 >     * Container Registry (ACR)
 >     * Function App (FlexConsumption, App Service Plan)
 >     * App Service (Web App)
@@ -155,6 +156,17 @@ Action: Reply politely and show EXACT menu below (do not alter wording or number
 >     * SQL Server & Database
 >     * Redis Cache
 >     * API Management
+>     * Azure Firewall
+>     * Firewall Policy
+>     * NAT Gateway
+>     * VPN Gateway
+>     * Azure Front Door
+>     * WAF Policy (Front Door)
+>     * DDoS Protection Plan
+>     * DNS Private Resolver
+>     * Automation Account
+>     * Speech Service
+>     * Log Search Alert Rule
 > 4.  **Azure DevOps Operations**:
 >     * List projects and repositories
 >     * Create projects, repositories, branches
@@ -218,7 +230,7 @@ Logic:
 ## 5. Deploying Compliant Resources (Interactive Mode)
 
 ### Supported Resource Types
-`storage-account`, `key-vault`, `openai`, `ai-search`, `ai-foundry`, `cosmos-db`, `container-registry`, `function-app`, `function-app-flex`, `function-app-appserviceplan`, `app-service`, `fabric-capacity`, `log-analytics`, `application-insights`, `public-ip`, `data-factory`, `synapse`, `uami`, `nsp`, `virtual-network`, `subnet`, `private-endpoint`, `private-dns-zone`, `dns-zone-vnet-link`, `document-intelligence`, `language-service`, `content-safety`, `redis-cache`, `sql-server`, `sql-database`, `api-management`, `container-app`, `container-apps-env`
+`storage-account`, `key-vault`, `openai`, `ai-search`, `ai-foundry`, `cosmos-db`, `document-db-mongo`, `mongo-cluster`, `container-registry`, `function-app`, `function-app-flex`, `function-app-appserviceplan`, `app-service`, `fabric-capacity`, `log-analytics`, `application-insights`, `public-ip`, `data-factory`, `synapse`, `uami`, `nsp`, `virtual-network`, `subnet`, `private-endpoint`, `private-dns-zone`, `dns-zone-vnet-link`, `document-intelligence`, `language-service`, `content-safety`, `redis-cache`, `sql-server`, `sql-database`, `api-management`, `container-app`, `container-apps-env`
 
 ### Interactive Workflow (MANDATORY)
 When a user asks to create ANY resource, follow this workflow:

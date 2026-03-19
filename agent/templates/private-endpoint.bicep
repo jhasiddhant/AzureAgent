@@ -164,11 +164,7 @@ var privateDnsZoneName = dnsZoneMapping[?groupId] ?? ''
 // Determine if we should create a new DNS zone or use existing
 var shouldCreateDnsZone = !empty(privateDnsZoneName) && empty(existingDnsZoneId)
 var shouldLinkNewZone = shouldCreateDnsZone && !skipVnetLink
-var shouldLinkExistingZone = !empty(existingDnsZoneId) && !skipVnetLink
 var hasDnsConfig = !empty(privateDnsZoneName) || !empty(existingDnsZoneId)
-
-// Extract existing DNS zone name for resource naming
-var existingDnsZoneNameValue = !empty(existingDnsZoneId) ? last(split(existingDnsZoneId, '/')) : ''
 
 // Extract VNet ID from subnet ID if not provided
 // Subnet ID format: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Network/virtualNetworks/{vnet}/subnets/{subnet}
@@ -219,26 +215,17 @@ resource vnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06
   }
 }
 
-// Create VNet Link to an existing DNS Zone (ensures DNS resolves from the VNet)
-resource vnetLinkExisting 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (shouldLinkExistingZone) {
-  name: '${existingDnsZoneNameValue}/${actualLinkName}'
-  location: 'global'
-  properties: {
-    registrationEnabled: enableDnsAutoRegistration
-    virtualNetwork: {
-      id: extractedVnetId
-    }
-  }
-}
+// NOTE: VNet links to existing DNS zones in different resource groups are now handled
+// by the Python code deploying dns-zone-vnet-link.bicep to the DNS zone's RG.
+// When skipVnetLink is true, we skip VNet link creation here and rely on Python handling it.
 
 // Create DNS Zone Group to link PE with DNS Zone (use existing or new zone)
-// Depends on VNet links so DNS resolution works before A records are registered
+// This registers the A record in the DNS zone for DNS resolution
 resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-07-01' = if (hasDnsConfig) {
   parent: privateEndpoint
   name: 'default'
   dependsOn: [
     vnetLink
-    vnetLinkExisting
   ]
   properties: {
     privateDnsZoneConfigs: [
@@ -257,5 +244,5 @@ output privateEndpointName string = privateEndpoint.name
 output networkInterfaceId string = privateEndpoint.properties.networkInterfaces[0].id
 output privateDnsZoneId string = shouldCreateDnsZone ? privateDnsZone.id : existingDnsZoneId
 output privateDnsZoneName string = shouldCreateDnsZone ? privateDnsZone.name : (!empty(existingDnsZoneId) ? last(split(existingDnsZoneId, '/')) : '')
-output vnetLinkId string = shouldLinkNewZone ? vnetLink.id : (shouldLinkExistingZone ? vnetLinkExisting.id : '')
+output vnetLinkId string = shouldLinkNewZone ? vnetLink.id : ''
 

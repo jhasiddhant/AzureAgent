@@ -1242,15 +1242,17 @@ def fabric_create_deployment_pipeline(
     """
     Creates Microsoft Fabric deployment pipeline(s) and assigns workspaces.
     
-    Two options:
+    IMPORTANT: User MUST choose a pipeline_type. Three options available:
     - "Dev-to-Prod": 1 pipeline (Development -> Production), 2 workspaces
+    - "UAT-to-Prod": 1 pipeline (UAT -> Production), 2 workspaces
     - "Dev-to-UAT-to-Prod": 2 pipelines (Dev->UAT + UAT->Prod), 3 workspaces
     
     Args:
         pipeline_name: Name for the pipeline (prefix for Dev-to-UAT-to-Prod)
-        pipeline_type: "Dev-to-Prod" or "Dev-to-UAT-to-Prod"
+        pipeline_type: REQUIRED - Must be one of: "Dev-to-Prod", "UAT-to-Prod", or "Dev-to-UAT-to-Prod"
         workspace_names: Comma-separated workspace names matching the type.
             Dev-to-Prod: "DevWS,ProdWS" (2 names)
+            UAT-to-Prod: "UATWS,ProdWS" (2 names)
             Dev-to-UAT-to-Prod: "DevWS,UATWS,ProdWS" (3 names)
         description: Optional description for the pipeline(s)
     

@@ -354,9 +354,13 @@ def create_deployment_pipeline(
     
     Args:
         pipeline_name: Name for the pipeline (used as prefix for Dev-to-UAT-to-Prod)
-        pipeline_type: Either "Dev-to-Prod" or "Dev-to-UAT-to-Prod"
+        pipeline_type: REQUIRED - Must be one of:
+            - "Dev-to-Prod": 2 workspaces (Dev, Prod)
+            - "UAT-to-Prod": 2 workspaces (UAT, Prod)
+            - "Dev-to-UAT-to-Prod": 3 workspaces (Dev, UAT, Prod)
         workspace_names: Comma-separated workspace names.
             Dev-to-Prod: "DevWS,ProdWS" (2 names)
+            UAT-to-Prod: "UATWS,ProdWS" (2 names)
             Dev-to-UAT-to-Prod: "DevWS,UATWS,ProdWS" (3 names)
         description: Optional description for the pipeline(s)
     
@@ -373,7 +377,14 @@ def create_deployment_pipeline(
     if missing:
         return "Missing required parameters:\n" + "\n".join([f"  - {m}" for m in missing])
 
-    allowed_types = ["Dev-to-Prod", "Dev-to-UAT-to-Prod"]
+    allowed_types = ["Dev-to-Prod", "UAT-to-Prod", "Dev-to-UAT-to-Prod"]
+    if not pipeline_type:
+        return f"""ERROR: pipeline_type is REQUIRED. You must choose one of the following:
+  - Dev-to-Prod: Creates 1 pipeline (Development -> Production), requires 2 workspaces
+  - UAT-to-Prod: Creates 1 pipeline (UAT -> Production), requires 2 workspaces
+  - Dev-to-UAT-to-Prod: Creates 2 pipelines (Dev->UAT + UAT->Prod), requires 3 workspaces
+
+Please specify which deployment pipeline type you want to create."""
     if pipeline_type not in allowed_types:
         return f"Invalid pipeline_type '{pipeline_type}'. Allowed values: {', '.join(allowed_types)}"
 
@@ -385,6 +396,16 @@ def create_deployment_pipeline(
         return _create_single_pipeline(
             pipeline_name=pipeline_name,
             stage_names=["Development", "Production"],
+            workspace_names_list=ws_list,
+            description=description
+        )
+
+    elif pipeline_type == "UAT-to-Prod":
+        if len(ws_list) != 2:
+            return f"UAT-to-Prod requires exactly 2 workspace names (UAT,Prod), got {len(ws_list)}: {ws_list}"
+        return _create_single_pipeline(
+            pipeline_name=pipeline_name,
+            stage_names=["UAT", "Production"],
             workspace_names_list=ws_list,
             description=description
         )

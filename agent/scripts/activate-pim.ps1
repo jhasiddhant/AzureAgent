@@ -126,19 +126,40 @@ if ($ActivateAll) {
     $eligibleRoles = Get-EligiblePIMRoles -Headers $authContext.Headers -FilterScopes $null -FilterRoleNames $null
 } else {
     # Mode 2: Activate specific role at specific scope
-    # First, resolve subscription name to ID
-    $subscriptions = az account list --output json 2>$null | ConvertFrom-Json
-    $matchingSub = $subscriptions | Where-Object { $_.name -eq $SubscriptionName -or $_.name -like "*$SubscriptionName*" } | Select-Object -First 1
+    # IMPORTANT: We fetch ALL eligible PIM roles first, then filter by subscription name.
+    # This is necessary because az account list only shows subscriptions with ACTIVE access,
+    # but the user may only have PIM-eligible access (not yet activated).
     
-    if (-not $matchingSub) {
-        Write-Host "Error: Subscription '$SubscriptionName' not found in your account list." -ForegroundColor Red
-        Write-Host "Available subscriptions:" -ForegroundColor Yellow
-        $subscriptions | ForEach-Object { Write-Host "  - $($_.name)" -ForegroundColor Gray }
+    Write-Host "Fetching all eligible roles from PIM to find subscription..." -ForegroundColor Gray
+    $allEligibleRoles = Get-EligiblePIMRoles -Headers $authContext.Headers -FilterScopes $null -FilterRoleNames $null -IncludeScopeDetails
+    
+    if (-not $allEligibleRoles -or $allEligibleRoles.Count -eq 0) {
+        Write-Host "Error: No eligible PIM roles found for your account." -ForegroundColor Red
         exit 1
     }
     
-    $subscriptionId = $matchingSub.id
-    Write-Host "Resolved subscription: $($matchingSub.name) ($subscriptionId)" -ForegroundColor Green
+    # Find matching subscription from PIM eligibility data (not az account list)
+    $matchingRoles = $allEligibleRoles | Where-Object { 
+        $_.Subscription -eq $SubscriptionName -or 
+        $_.Subscription -like "*$SubscriptionName*" -or
+        $_.SubscriptionId -eq $SubscriptionName
+    }
+    
+    if (-not $matchingRoles -or $matchingRoles.Count -eq 0) {
+        Write-Host "Error: Subscription '$SubscriptionName' not found in your PIM eligible roles." -ForegroundColor Red
+        Write-Host "Available subscriptions with PIM eligibility:" -ForegroundColor Yellow
+        $allEligibleRoles | Select-Object -Property Subscription, SubscriptionId -Unique | ForEach-Object { 
+            if ($_.Subscription) {
+                Write-Host "  - $($_.Subscription) ($($_.SubscriptionId))" -ForegroundColor Gray 
+            }
+        }
+        exit 1
+    }
+    
+    # Get subscription ID from the matched roles
+    $subscriptionId = ($matchingRoles | Select-Object -First 1).SubscriptionId
+    $subscriptionName = ($matchingRoles | Select-Object -First 1).Subscription
+    Write-Host "Resolved subscription from PIM: $subscriptionName ($subscriptionId)" -ForegroundColor Green
     
     # Build scope filter
     $targetScopeBase = "/subscriptions/$subscriptionId"
@@ -148,12 +169,25 @@ if ($ActivateAll) {
     
     Write-Host "Target scope base: $targetScopeBase" -ForegroundColor Gray
     
-    # Get eligible roles filtered by scope prefix and role name
-    $eligibleRoles = Get-EligiblePIMRoles -Headers $authContext.Headers -FilterScopes @($targetScopeBase) -FilterRoleNames @($RoleName)
-    
-    # If ResourceName is specified, further filter to match resource
-    if ($ResourceName -and $eligibleRoles.Count -gt 0) {
-        $eligibleRoles = $eligibleRoles | Where-Object { $_.Scope -like "*$ResourceName*" }
+    # Filter roles by scope and role name
+    # IMPORTANT: Be strict about scope matching based on what the user specified
+    if ($ResourceName) {
+        # Resource-level: match resource name in scope
+        $eligibleRoles = $matchingRoles | Where-Object {
+            $_.Scope -like "*$ResourceName*" -and $_.RoleName -eq $RoleName
+        }
+    }
+    elseif ($ResourceGroupName) {
+        # Resource group level: match exact RG scope only (not resources under it)
+        $eligibleRoles = $matchingRoles | Where-Object {
+            $_.Scope -eq $targetScopeBase -and $_.RoleName -eq $RoleName
+        }
+    }
+    else {
+        # Subscription level only: match EXACT subscription scope (not RGs/resources under it)
+        $eligibleRoles = $matchingRoles | Where-Object {
+            $_.Scope -eq $targetScopeBase -and $_.RoleName -eq $RoleName
+        }
     }
 }
 
@@ -166,6 +200,11 @@ if ($eligibleRoles.Count -eq 0) {
     }
     if (-not $ActivateAll) {
         $output.message = "No eligible role '$RoleName' found at scope '$targetScopeBase'. Check that you have this role assigned in PIM."
+        # Show available roles for this subscription to help the user
+        Write-Host "`nAvailable roles for subscription '$subscriptionName':" -ForegroundColor Yellow
+        $matchingRoles | Select-Object -Property RoleName, ScopeLevel -Unique | ForEach-Object {
+            Write-Host "  - $($_.RoleName) ($($_.ScopeLevel))" -ForegroundColor Gray
+        }
     }
     Write-Host "`nJSON Output:" -ForegroundColor Cyan
     $output | ConvertTo-Json -Depth 5
