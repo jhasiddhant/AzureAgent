@@ -127,6 +127,8 @@ LOG_ANALYTICS_MANDATORY_RESOURCES = [
     "ai-contentsafety",
     "ai-languageservices",
     "front-door",
+    "frontdoor",
+    "afd",
     "virtual-machine",
     "vm",
     "redis-cache",
@@ -135,7 +137,12 @@ LOG_ANALYTICS_MANDATORY_RESOURCES = [
     "acr",
     "sql-database",
     "sql-db",
-    "azure-sql-database"
+    "azure-sql-database",
+    "automation-account",
+    "automation",
+    "speech-service",
+    "speech",
+    "speech-services"
 ]
 
 # Bicep Templates mapping
@@ -205,6 +212,39 @@ TEMPLATE_MAP = {
     "apim": "templates/api-management.bicep",
     "ai-foundry": "templates/ai-foundry.bicep",
     "ai-hub": "templates/ai-foundry.bicep",
+    "azure-firewall": "templates/azure-firewall.bicep",
+    "firewall": "templates/azure-firewall.bicep",
+    "azfw": "templates/azure-firewall.bicep",
+    "nat-gateway": "templates/nat-gateway.bicep",
+    "natgw": "templates/nat-gateway.bicep",
+    "automation-account": "templates/automation-account.bicep",
+    "automation": "templates/automation-account.bicep",
+    "waf-policy": "templates/waf-policy.bicep",
+    "waf": "templates/waf-policy.bicep",
+    "frontdoor-waf": "templates/waf-policy.bicep",
+    "front-door": "templates/front-door.bicep",
+    "frontdoor": "templates/front-door.bicep",
+    "afd": "templates/front-door.bicep",
+    "ddos-protection-plan": "templates/ddos-protection-plan.bicep",
+    "ddos": "templates/ddos-protection-plan.bicep",
+    "vpn-gateway": "templates/vpn-gateway.bicep",
+    "vpngateway": "templates/vpn-gateway.bicep",
+    "vpngw": "templates/vpn-gateway.bicep",
+    "firewall-policy": "templates/firewall-policy.bicep",
+    "fw-policy": "templates/firewall-policy.bicep",
+    "dns-resolver": "templates/dns-resolver.bicep",
+    "dns-private-resolver": "templates/dns-resolver.bicep",
+    "dnspr": "templates/dns-resolver.bicep",
+    "speech-service": "templates/speech-service.bicep",
+    "speech": "templates/speech-service.bicep",
+    "speech-services": "templates/speech-service.bicep",
+    "log-search-alert": "templates/log-search-alert.bicep",
+    "alert-rule": "templates/log-search-alert.bicep",
+    "scheduled-query-rule": "templates/log-search-alert.bicep",
+    "document-db-mongo": "templates/document-db-mongo.bicep",
+    "mongo-cluster": "templates/document-db-mongo.bicep",
+    "mongodb-cluster": "templates/document-db-mongo.bicep",
+    "docdb-mongo": "templates/document-db-mongo.bicep",
 }
 
 # Resource types that have multiple variants - user should choose
@@ -327,7 +367,11 @@ RESOURCE_TYPE_PROVIDER_MAP = {
     "adf": "Microsoft.DataFactory/factories",
     "public-ip": "Microsoft.Network/publicIPAddresses",
     "pip": "Microsoft.Network/publicIPAddresses",
-    "front-door": "Microsoft.Network/frontDoors",
+    "front-door": "Microsoft.Cdn/profiles",
+    "frontdoor": "Microsoft.Cdn/profiles",
+    "afd": "Microsoft.Cdn/profiles",
+    "ddos-protection-plan": "Microsoft.Network/ddosProtectionPlans",
+    "ddos": "Microsoft.Network/ddosProtectionPlans",
     "nsg": "Microsoft.Network/networkSecurityGroups",
     "network-security-group": "Microsoft.Network/networkSecurityGroups",
     "vnet": "Microsoft.Network/virtualNetworks",
@@ -339,6 +383,30 @@ RESOURCE_TYPE_PROVIDER_MAP = {
     "vm": "Microsoft.Compute/virtualMachines",
     "redis-cache": "Microsoft.Cache/redis",
     "redis-enterprise": "Microsoft.Cache/redisEnterprise",
+    "azure-firewall": "Microsoft.Network/azureFirewalls",
+    "firewall": "Microsoft.Network/azureFirewalls",
+    "azfw": "Microsoft.Network/azureFirewalls",
+    "nat-gateway": "Microsoft.Network/natGateways",
+    "natgw": "Microsoft.Network/natGateways",
+    "automation-account": "Microsoft.Automation/automationAccounts",
+    "automation": "Microsoft.Automation/automationAccounts",
+    "waf-policy": "Microsoft.Network/FrontDoorWebApplicationFirewallPolicies",
+    "waf": "Microsoft.Network/FrontDoorWebApplicationFirewallPolicies",
+    "frontdoor-waf": "Microsoft.Network/FrontDoorWebApplicationFirewallPolicies",
+    "vpn-gateway": "Microsoft.Network/virtualNetworkGateways",
+    "vpngateway": "Microsoft.Network/virtualNetworkGateways",
+    "vpngw": "Microsoft.Network/virtualNetworkGateways",
+    "firewall-policy": "Microsoft.Network/firewallPolicies",
+    "fw-policy": "Microsoft.Network/firewallPolicies",
+    "dns-resolver": "Microsoft.Network/dnsResolvers",
+    "dns-private-resolver": "Microsoft.Network/dnsResolvers",
+    "dnspr": "Microsoft.Network/dnsResolvers",
+    "speech-service": "Microsoft.CognitiveServices/accounts",
+    "speech": "Microsoft.CognitiveServices/accounts",
+    "speech-services": "Microsoft.CognitiveServices/accounts",
+    "log-search-alert": "Microsoft.Insights/scheduledQueryRules",
+    "alert-rule": "Microsoft.Insights/scheduledQueryRules",
+    "scheduled-query-rule": "Microsoft.Insights/scheduledQueryRules",
 }
 
 # Pipeline YAML Templates
@@ -641,7 +709,9 @@ def get_resource_id(resource_group: str, resource_type: str, parameters: Dict[st
         "name", "accountName", "keyVaultName", "serverName", "databaseName", "storageAccountName",
         "workspaceName", "searchServiceName", "serviceName", "vmName", "virtualMachineName",
         "siteName", "functionAppName", "appServiceName", "logicAppName", "workflowName",
-        "factoryName", "cacheName", "frontDoorName", "clusterName"
+        "factoryName", "cacheName", "frontDoorName", "clusterName", "wafPolicyName",
+        "vpnGatewayName", "natGatewayName", "ddosProtectionPlanName", "firewallPolicyName",
+        "dnsResolverName", "alertRuleName"
     ]
     
     resource_name = None
@@ -690,7 +760,7 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
         details.append(f"   Storage Account: {storage_name}")
         details.append(f"   Location: {location}")
         details.append(f"   Access Tier: {access_tier}")
-        details.append(f"   ADLS Gen2: {'Enabled' if hns_enabled.lower() == 'true' else 'Disabled'}")
+        details.append(f"   ADLS Gen2: {'Enabled' if str(hns_enabled).lower() == 'true' else 'Disabled'}")
         details.append(f"   Blob Endpoint: https://{storage_name}.blob.core.windows.net/")
         details.append(f"   DFS Endpoint: https://{storage_name}.dfs.core.windows.net/")
     
@@ -1015,6 +1085,70 @@ def format_deployment_details(resource_type: str, resource_group: str, parameter
         details.append("")
         details.append(f"   URL: https://{app_name}.<environment-default-domain>")
     
+    elif resource_type in ["vpn-gateway", "vpngateway", "vpngw"]:
+        gw_name = parameters.get("vpnGatewayName", "N/A")
+        sku = parameters.get("skuName", "VpnGw2AZ")
+        vpn_type = parameters.get("vpnType", "RouteBased")
+        generation = parameters.get("vpnGatewayGeneration", "Generation1")
+        vnet_id = parameters.get("vnetId", "N/A")
+        vnet_name = vnet_id.split("/")[-1] if vnet_id != "N/A" else "N/A"
+        nsg_id = parameters.get("nsgId", "N/A")
+        nsg_name = nsg_id.split("/")[-1] if nsg_id != "N/A" else "N/A"
+        details.append(f"   VPN Gateway: {gw_name}")
+        details.append(f"   Location: {location}")
+        details.append(f"   SKU: {sku}")
+        details.append(f"   VPN Type: {vpn_type}")
+        details.append(f"   Generation: {generation}")
+        details.append("")
+        details.append("   Configuration:")
+        details.append("     - Active-Active: Enabled")
+        details.append("     - BGP: Enabled")
+        details.append(f"     - VNet: {vnet_name}")
+        details.append(f"     - NSG: {nsg_name}")
+        details.append("     - Public IPs: 3 (Primary, Secondary, Tertiary)")
+        details.append("")
+        details.append("   " + "═" * 60)
+        details.append("   IMPORTANT: VPN Gateway takes ~30-45 minutes to provision.")
+        details.append("   " + "═" * 60)
+        details.append("")
+        details.append("   Point-to-Site (P2S) Configuration")
+        details.append("   " + "─" * 60)
+        details.append("   After the VPN Gateway is created, configure the P2S settings")
+        details.append("   in the Azure Portal with the following details:")
+        details.append("")
+        details.append("     1. Address Pool: Add the private address prefix for P2S clients")
+        details.append("     2. Tunnel type: Select OpenVPN (SSL)")
+        details.append("     3. Authentication type: Select Azure Active Directory")
+        details.append("     4. Tenant: https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47/")
+        details.append("     5. Audience: c632b3df-fb67-4d84-bdcf-b95ad541b5c8")
+        details.append("     6. Issuer: https://sts.windows.net/72f988bf-86f1-41af-91ab-2d7cd011db47/")
+        details.append("     7. Assign the third Public IP to the P2S configuration")
+        details.append("")
+        details.append("   Portal Path: VPN Gateway > Point-to-site configuration")
+
+    elif resource_type in ["front-door", "frontdoor", "afd"]:
+        fd_name = parameters.get("frontDoorName", "N/A")
+        endpoint_name = parameters.get("endpointName", "") or fd_name
+        origin_host = parameters.get("originHostName", "N/A")
+        sku = parameters.get("skuName", "Premium_AzureFrontDoor")
+        waf_id = parameters.get("wafPolicyId", "N/A")
+        waf_name = waf_id.split("/")[-1] if waf_id != "N/A" else "N/A"
+        details.append(f"   Front Door Profile: {fd_name}")
+        details.append(f"   SKU: {sku}")
+        details.append(f"   Endpoint: {endpoint_name}")
+        details.append("")
+        details.append("   Origin Configuration:")
+        details.append(f"     - Host: {origin_host}")
+        details.append(f"     - Origin Group: {parameters.get('originGroupName', 'default-origin-group')}")
+        details.append("")
+        details.append("   Security:")
+        details.append(f"     - WAF Policy: {waf_name}")
+        details.append("     - HTTPS Redirect: Enabled")
+        details.append("     - Certificate Name Check: Enforced")
+        details.append("")
+        details.append("   Endpoint URL:")
+        details.append(f"     https://{endpoint_name}.z01.azurefd.net")
+
     else:
         name_keys = ["name", "accountName", "serverName", "serviceName"]
         resource_name = None

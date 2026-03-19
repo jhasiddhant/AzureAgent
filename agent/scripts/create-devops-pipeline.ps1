@@ -40,10 +40,11 @@ if (-not $ext) {
   az extension add --name azure-devops | Out-Null
 }
 
-# Get Azure AD token for authentication
-$token = az account get-access-token --scope 499b84ac-1321-427f-aa17-267ca6975798/.default --query accessToken -o tsv 2>$null
-if (-not $token) {
+# Get Azure AD token for authentication (using --resource for compatibility)
+$token = az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv 2>&1
+if (-not $token -or $LASTEXITCODE -ne 0) {
   Write-Host "`nAuthentication failed. Run 'az login' first." -ForegroundColor Red
+  Write-Host "Token error: $token" -ForegroundColor Gray
   exit 1
 }
 $env:AZURE_DEVOPS_EXT_PAT = $token

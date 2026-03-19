@@ -6,12 +6,6 @@
 
 ---
 
-## Architecture
-
-![Azure Platform Agent Architecture](docs/architecture.png)
-
----
-
 ## Tools Available
 
 ### General
@@ -44,6 +38,7 @@
 | | | — AI Language Service |
 | | | — AI Foundry (AI Hub) |
 | | | — Cosmos DB |
+| | | — Document DB (MongoDB Cluster) |
 | | | — Log Analytics Workspace |
 | | | — User Assigned Managed Identity (UAMI) |
 | | | — Network Security Perimeter (NSP) |
@@ -71,6 +66,17 @@
 | | | — Data Collection Endpoint (DCE) |
 | | | — Data Collection Rule (DCR) |
 | | | — API Management (APIM) |
+| | | — Azure Firewall |
+| | | — Firewall Policy |
+| | | — NAT Gateway |
+| | | — VPN Gateway |
+| | | — Azure Front Door |
+| | | — WAF Policy (Front Door) |
+| | | — DDoS Protection Plan |
+| | | — DNS Private Resolver |
+| | | — Automation Account |
+| | | — Speech Service |
+| | | — Log Search Alert Rule |
 | 8 | **Get Bicep Requirements** | View required/optional parameters for any Bicep resource template before deployment. |
 | 9 | **Get Resource Info** | Unified query tool — list resource groups, list/find resources, get resource details, get managed identity info, run custom KQL (Resource Graph) queries, or run raw CLI commands. |
 | 10 | **Check Resource** | Check if a specific resource type exists in a resource group. |

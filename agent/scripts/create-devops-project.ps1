@@ -30,10 +30,11 @@ if (-not $ext) {
   az extension add --name azure-devops | Out-Null
 }
 
-# Get Azure AD token for authentication
-$token = az account get-access-token --scope 499b84ac-1321-427f-aa17-267ca6975798/.default --query accessToken -o tsv 2>$null
-if (-not $token) {
+# Get Azure AD token for authentication (using --resource like Fabric scripts)
+$token = az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv 2>&1
+if (-not $token -or $LASTEXITCODE -ne 0) {
   Write-Host "\nAuthentication failed. Run 'az login' first." -ForegroundColor Red
+  Write-Host "Token error: $token" -ForegroundColor Gray
   exit 1
 }
 $env:AZURE_DEVOPS_EXT_PAT = $token
@@ -41,19 +42,26 @@ $env:AZURE_DEVOPS_EXT_PAT = $token
 # Configure defaults
 az devops configure --defaults organization=$Organization | Out-Null
 
-# Create project
-az devops project create `
-  --name $ProjectName `
-  --org $Organization `
-  --visibility private `
-  --source-control Git `
-  --description $Description 2>$null
+# Create project (only include --description if provided)
+$createArgs = @(
+  "devops", "project", "create",
+  "--name", $ProjectName,
+  "--org", $Organization,
+  "--visibility", "private",
+  "--source-control", "Git"
+)
+if ($Description -and $Description.Trim()) {
+  $createArgs += @("--description", $Description)
+}
+$createResult = az @createArgs 2>&1
 
 if ($LASTEXITCODE -ne 0) {
   Write-Host "\nProject creation failed. Check:" -ForegroundColor Red
   Write-Host "  1. You're logged in with 'az login'" -ForegroundColor Yellow
   Write-Host "  2. You have Project Create permissions in the organization" -ForegroundColor Yellow
   Write-Host "  3. Organization URL is correct" -ForegroundColor Yellow
+  Write-Host "\nError details:" -ForegroundColor Red
+  Write-Host $createResult -ForegroundColor Gray
   exit 1
 }
 
